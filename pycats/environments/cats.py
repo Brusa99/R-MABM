@@ -1,8 +1,12 @@
-from typing import Union, Dict, Optional, Tuple
+import random
+from typing import Union, Dict, Optional, Tuple, Any
 from pathlib import Path
 import warnings
 
+import numpy as np
+
 import gymnasium as gym
+from gymnasium.core import ObsType, RenderFrame
 
 import juliacall
 from juliacall import Main as jl
@@ -41,6 +45,7 @@ class Cats(gym.Env):
             some of the keys, the default values are used for the missing keys.
 
     Attributes:
+        t: current time step
         metadata: Metadata for the _gymnasium_ interface.
         
     """
@@ -93,19 +98,21 @@ class Cats(gym.Env):
         "act_price_factor": (0.7, 1.3),
     }
 
-    def __init__(self,
-                 T: int = 5000,
-                 W: int = 1000,
-                 F: int = 100,
-                 N: int = 20,
-                 params: Union[None, str, Path, Dict] = None,
-                 t_burnin: int = 300,
-                 n_agents: int = 0,
-                 reward_type: str = "profits",
-                 price_change: str = "agent_price",
-                 bankruptcy_reward: int = -100,
-                 render_mode: Optional[Dict] = None,
-                 gym_spaces_bounds: Optional[Dict[str, Tuple[float, float]]] = None,):
+    def __init__(
+            self,
+            T: int = 5000,
+            W: int = 1000,
+            F: int = 100,
+            N: int = 20,
+            params: Dict[str, Any] | str | Path | None = None,
+            t_burnin: int = 300,
+            n_agents: int = 0,
+            reward_type: str = "profits",
+            price_change: str = "agent_price",
+            bankruptcy_reward: int = -100,
+            render_mode: Dict[str, Any] | None = None,
+            gym_spaces_bounds: Dict[str, Tuple[float, float]] | None = None,
+    ):
         self.T = T
         self.W = W
         self.F = F
@@ -136,7 +143,7 @@ class Cats(gym.Env):
         jl.seval("using Cats")
         jl.seval("using Random")
         self._julia_model_init()
-        
+
         # get the ids of RL agents and model-controlled agents
         _, ids_prod_firms, _, _, _ = jl.seval("Cats.get_ids")(self.model)
         self.agents_ids = ids_prod_firms[:n_agents]
@@ -145,7 +152,7 @@ class Cats(gym.Env):
         self._create_spaces(gym_spaces_bounds)
 
         # Current time step
-        self.t = 0
+        self.t: int = 0
 
     def _load_parameters(self, params):
         """Load the parameters for the model. Automatically infers `param` type and loads the parameters accordingly."""
@@ -186,8 +193,40 @@ class Cats(gym.Env):
                                                ),
             }
         )
-        
 
+    def render(self) -> RenderFrame | list[RenderFrame] | None:
+        pass
 
+    def reset(
+            self,
+            seed: int | None = None,
+            options: Dict[str, Any] | None = None,
+    ) -> tuple[list[ObsType], dict[str, Any]]:
+        """Reset the environment to a random initial state. Obtaining initial obs and info.
 
+        To reset the environment, a new model is created through Julia.
+        Burn-in is performed and each agents' observation are returned along with environment info.
+        The seed is set across both python and julia.
 
+        Args:
+            seed:
+            options:
+
+        Returns:
+            List of observations for each RL agents
+            Environment info dictionary
+
+        """
+        # set seeds across everything
+        super().reset(seed=seed)
+        random.seed(seed)
+        jl.seval("Random.seed!")(seed)
+        np.random.seed(seed)
+
+        # reinitialize the model
+        self._julia_model_init()
+
+        # burn-in the environment
+        self._burnin()
+
+        return self._get_obs(), self._get_info()
