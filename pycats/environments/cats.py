@@ -132,7 +132,7 @@ class Cats(gym.Env):
         if price_change not in ["agent_price", "avg_price"]:
             raise ValueError("Invalid price change mechanism. Must be 'agent_price' or 'avg_price'")
         else:
-            self.price_change = price_change
+            self._price_change = price_change
 
         if render_mode not in self.metadata["render.modes"] and render_mode is not None:
             raise ValueError(f"Invalid render mode. Must be one of {self.metadata['render.modes']}")
@@ -154,7 +154,7 @@ class Cats(gym.Env):
         # Current time step
         self.t: int = 0
 
-    def _load_parameters(self, params):
+    def _load_parameters(self, params) -> None:
         """Load the parameters for the model. Automatically infers `param` type and loads the parameters accordingly."""
 
         if params is None:  # use default parameters
@@ -162,13 +162,13 @@ class Cats(gym.Env):
         # TODO: implement loading parameters from a file
         # TODO: implement loading parameters from a dictionary
 
-    def _julia_model_init(self):
+    def _julia_model_init(self) -> None:
         """Initialize the model in Julia."""
 
         self.model = jl.seval("Cats.initialise_model")(self.W, self.F, self.N, self.params)
         self.model.bank["E_threshold"] = 30.0 * (self.F + self.N) * 0.1
 
-    def _create_spaces(self, gym_spaces_bounds):
+    def _create_spaces(self, gym_spaces_bounds) -> None:
         """Create the gym spaces dicts for observations and actions"""
 
         # TODO: add check for key presence and add partial fill-in
@@ -338,3 +338,63 @@ class Cats(gym.Env):
 
         # reset the time step
         self.t = 0
+
+    def _implement_action(self, actions: list[ActType], prev_demands: list[float], prev_prices: list[float]) -> None:
+        """Overwrite the decision of the julia agents with the provided actions for RL controlled firms."""
+
+        for index, f_id in enumerate(self.agents_ids):
+            # ignore dummy actions
+            if actions[index] == "dummy":
+                continue
+
+            # unpack
+            exp_demand_factor, firm_price_factor = actions[index]
+
+            # compute the new values
+            exp_demand = prev_demands[index] * exp_demand_factor
+            if self._price_change == "agent_price":
+                firm_price = prev_prices[index] * firm_price_factor
+            elif self._price_change == "avg_price":
+                firm_price = self.model.price * firm_price_factor
+            else:
+                raise ValueError(
+                    f"Invalid price change mechanism. Must be 'agent_price' or 'avg_price'. Got {self._price_change} "
+                    f"This should not happen, as it is checked in the __init__ method."
+                )
+
+            # adjust (minium demand is alpha = at least 1 worker)
+            if exp_demand < self.model.params["alpha"]:
+                exp_demand = self.model.params["alpha"]
+
+            # modify in the julia model
+            self.model[f_id].De = exp_demand
+            self.model[f_id].P = firm_price
+
+    def _get_obs(self) -> list[ObsType]:
+        """Return the observations for the RL agents."""
+
+        obs = []  # list of observations for all agents
+        for f_id in self.agents_ids:
+            # compute observations
+            firm_stock = self.model[f_id].Y_prev - self.model[f_id].Yd
+            price = self.model[f_id].P - self.model.price
+
+            obs.append(
+                {
+                    "firm_stock": firm_stock,  # production surplus if > 0, additional sellable stock if > 0
+                    "price_delta": price,  # price difference from the market average
+                }
+            )
+        return obs
+
+    def _get_terminated(self, ids_prod_firms: list[int]) -> bool:
+        """Check if all firms are bankrupt."""
+
+        return sum([self.model[f_id].A for f_id in ids_prod_firms]) == 0
+
+    def _get_truncated(self) -> bool:
+        """Check if the simulation reached the maximum number of steps."""
+
+        return self.t >= self.T
+
+
