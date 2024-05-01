@@ -1,12 +1,12 @@
 import random
-from typing import Union, Dict, Optional, Tuple, Any
+from typing import Union, Dict, Optional, Tuple, Any, SupportsFloat
 from pathlib import Path
 import warnings
 
 import numpy as np
 
 import gymnasium as gym
-from gymnasium.core import ObsType, RenderFrame
+from gymnasium.core import ObsType, RenderFrame, ActType
 
 import juliacall
 from juliacall import Main as jl
@@ -230,3 +230,111 @@ class Cats(gym.Env):
         self._burnin()
 
         return self._get_obs(), self._get_info()
+
+    def step(
+        self,
+        actions: list[ActType],
+        burnin: bool = False,
+    ) -> tuple[list[ObsType], list[SupportsFloat], bool, bool, dict[str, Any]]:
+        """Perform a step in the environment.
+
+        The agents' actions are applied to the model and the model is stepped forward.
+        Agents' observations are returned along with their rewards. Moreover termination and truncation flag are
+        returned. The environment info is also returned.
+
+        Termination occurs when all firms are bankrupt. Truncaion occurs when the time step reaches the maximum number
+        of steps (`T`).
+
+        Args:
+            actions: list of actions for each agent. Each action is a dictionary with keys 'production_factor' and
+                'price_factor'. Must be in the same order as the agents' ids.
+            burnin: if True, provided actions are ignored and the model is stepped forward with original (rationally
+                bounded) actions.
+
+        Returns:
+            List of observations for each RL agent
+            List of rewards for each RL agent
+            Termination flag
+            Truncation flag
+            Environment info dictionary
+
+        Raises:
+            ValueError: If the number of actions is different from the number of agents.
+
+        """
+        # check if input is valid
+        if len(actions) != self.n_agents:
+            raise ValueError(
+                f"Number of actions ({len(actions)}) must be equal to the number of agents ({self.n_agents})"
+            )
+        # update the julia model from python
+        ids_workers, ids_prod_firms, ids_cap_firms, ids_firms, ids = jl.seval("Cats.get_ids")(self.model)
+        ids_workers_rand = ids_workers.copy()
+        ids_prod_firms_rand = ids_prod_firms.copy()
+
+        # simulation stops if all firms are bankrupt
+        terminated = self._get_terminated(ids_prod_firms)
+
+        jl.seval("Cats.reset_gov_and_banking_variables!")(self.model)
+        self.model.gov["bond_interest_rate"] = self.model.params["interest_rate"]  # done through a function in julia
+
+        # keep old values to make actions relative
+        prev_demands = [self.model[f_id].De for f_id in self.agents_ids]
+        prev_prices = [self.model[f_id].P for f_id in self.agents_ids]
+
+        # firms decisions in the original mode
+        jl.seval("Cats.find_expected_demand!")(ids_firms, self.model)
+        jl.seval("Cats.find_expected_investment!")(ids_prod_firms, self.model)
+
+        # overwrite the decision of the agents
+        if not burnin:
+            self._implement_action(actions, prev_demands, prev_prices)
+
+        # model step
+        jl.seval("Cats.find_labour_demand!")(ids_firms, self.model)
+        jl.seval("Cats.get_credit!")(ids_firms, self.model)
+        jl.seval("Cats.fire_workers!")(ids_firms, self.model, ids_workers_rand)
+        jl.seval("Cats.search_job!")(ids_workers_rand, ids_firms, self.model)
+        jl.seval("Cats.produce!")(ids_firms, self.model)
+        jl.seval("Cats.buy_capgoods!")(ids_prod_firms, ids_cap_firms, self.model, ids_prod_firms_rand)
+        jl.seval("Cats.adjust_subsidy!")(ids_workers, self.model)
+        jl.seval("Cats.get_paid!")(ids_workers, self.model)
+        jl.seval("Cats.find_cons_budget!")(ids, self.model)
+        jl.seval("Cats.consume!")(ids, ids_prod_firms, self.model)
+
+        # accounting and rewards
+        jl.seval("Cats.accounting!")(ids_firms, self.model)
+        reward = self._get_reward()
+
+        # update avg prices and tracking variables
+        jl.seval("Cats.update_price!")(self.model, ids_prod_firms)
+        jl.seval("Cats.update_price_k!")(self.model, ids_cap_firms)
+        jl.seval("Cats.update_tracking_variables!")(self.model, ids_prod_firms, ids_cap_firms, ids_workers)
+
+        # check for bankruptcies and update gov and wages
+        jl.seval("Cats.bankrupt!")(ids_prod_firms, ids_cap_firms, self.model, ids_workers)
+        jl.seval("Cats.bank_pays_dividends!")(self.model, ids_prod_firms, ids_cap_firms)
+        jl.seval("Cats.gov_accounting!")(self.model)
+        jl.seval("Cats.adjust_wages!")(self.model)
+
+        # update the time step
+        self.model.timestep += 1
+        self.t += 1
+
+        # compute the state, reward and termination
+        obs = self._get_obs()
+        info = self._get_info()
+        truncated = self._get_truncated()
+
+        return obs, reward, terminated, truncated, info
+
+    def _burnin(self) -> None:
+        """Burn-in the environment. Resets class internal time to 0, julia model time is kept."""
+
+        dummy_action = [[1, 1, 1] for _ in range(self.n_agents)]  # will be ignored by `step`
+
+        for _ in range(self.t_burnin):
+            self.step(dummy_action, burnin=True)
+
+        # reset the time step
+        self.t = 0
