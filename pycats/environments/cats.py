@@ -1,4 +1,6 @@
 import random
+import json
+import csv
 from typing import Dict, Tuple, Any, SupportsFloat
 from pathlib import Path
 import warnings
@@ -54,7 +56,7 @@ class Cats(gym.Env):
     """
 
     metadata: Dict = {
-        "render.modes": ["print", "plot", "save"],
+        "render_modes": ["print", "plot", "save"],
         "render_fps": 4,
     }
 
@@ -137,7 +139,7 @@ class Cats(gym.Env):
         else:
             self._price_change = price_change
 
-        if render_mode not in self.metadata["render.modes"] and render_mode is not None:
+        if render_mode not in self.metadata["render_modes"] and render_mode is not None:
             raise ValueError(f"Invalid render mode. Must be one of {self.metadata['render.modes']}")
         else:
             self.render_mode = render_mode
@@ -162,8 +164,46 @@ class Cats(gym.Env):
 
         if params is None:  # use default parameters
             self.params = juliacall.convert(T=jl.seval("Dict{Symbol, Real}"), x=self._default_parameters)
-        # TODO: implement loading parameters from a file
-        # TODO: implement loading parameters from a dictionary
+        elif isinstance(params, dict):
+            # check for missing keys and fill them with default values
+            for key, value in self._default_parameters.items():
+                if key not in params:
+                    params[key] = value
+            self.params = juliacall.convert(T=jl.seval("Dict{Symbol, Real}"), x=params)
+
+        if isinstance(params, str):
+            params = Path(params)
+
+        if isinstance(params, Path):
+            if params.suffix == ".json":
+                with open(params, "r") as f:
+                    params = json.load(f)
+
+                # check for missing keys and fill them with default values
+                for key, value in self._default_parameters.items():
+                    if key not in params:
+                        params[key] = value
+
+            elif params.suffix == ".csv":
+                with open(params, "r") as f:
+                    reader = csv.reader(f)
+                    params = [float(row[0]) for row in reader]
+
+                # first three parameters must be integers
+                params[:3] = [int(x) for x in params[:3]]
+
+                keys = list(self._default_parameters.keys())
+                # check if the number of parameters is correct
+                if len(params) != len(keys):
+                    raise ValueError(f"Invalid number of parameters. Expected {len(keys)}, got {len(params)}")
+
+                # create the dictionary
+                params = {key: value for key, value in zip(keys, params)}
+
+            else:
+                raise ValueError(f"Invalid file type. Must be .json or .csv. Got {params.suffix}")
+
+            self.params = juliacall.convert(T=jl.seval("Dict{Symbol, Real}"), x=params)
 
     def _julia_model_init(self) -> None:
         """Initialize the model in Julia."""
@@ -174,7 +214,14 @@ class Cats(gym.Env):
     def _create_spaces(self, gym_spaces_bounds) -> None:
         """Create the gym spaces dicts for observations and actions"""
 
-        # TODO: add check for key presence and add partial fill-in
+        # use defaults if not provided
+        if gym_spaces_bounds is None:
+            gym_spaces_bounds = self._default_gym_spaces_bounds
+
+        # check is all keys are present, fill with default values if not
+        for key, value in self._default_gym_spaces_bounds.items():
+            if key not in gym_spaces_bounds:
+                gym_spaces_bounds[key] = value
 
         self.observation_space = gym.spaces.Dict(
             {
@@ -212,8 +259,8 @@ class Cats(gym.Env):
         The seed is set across both python and julia.
 
         Args:
-            seed:
-            options:
+            seed: seed for the environment
+            options: additional options for the reset, none are available for now
 
         Returns:
             List of observations for each RL agents
