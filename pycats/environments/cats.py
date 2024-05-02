@@ -1,5 +1,5 @@
 import random
-from typing import Union, Dict, Optional, Tuple, Any, SupportsFloat
+from typing import Dict, Tuple, Any, SupportsFloat
 from pathlib import Path
 import warnings
 
@@ -47,6 +47,9 @@ class Cats(gym.Env):
     Attributes:
         t: current time step
         metadata: Metadata for the _gymnasium_ interface.
+
+    Raises:
+        ValueError: If the reward_type, price_change or render_mode are invalid.
         
     """
 
@@ -239,7 +242,7 @@ class Cats(gym.Env):
         """Perform a step in the environment.
 
         The agents' actions are applied to the model and the model is stepped forward.
-        Agents' observations are returned along with their rewards. Moreover termination and truncation flag are
+        Agents' observations are returned along with their rewards. Moreover, termination and truncation flag are
         returned. The environment info is also returned.
 
         Termination occurs when all firms are bankrupt. Truncaion occurs when the time step reaches the maximum number
@@ -462,4 +465,67 @@ class Cats(gym.Env):
             reward.append(RIC / total_revenue)
         return reward
 
+    def _get_info(self) -> dict[str, Any]:
+        """Return the environment info."""
 
+        # TODO: add info level variable to control the amount of information returned
+
+        agents_production = [self.model[agent_id].Y_prev * self.model.price for agent_id in self.agents_ids]
+        others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self.other_firms_ids])
+        agents_sales = [self.model[agent_id].Q for agent_id in self.agents_ids]
+        others_sales = np.array([self.model[f_id].Q for f_id in self.other_firms_ids])
+        agents_debt = [self.model[agent_id].deb for agent_id in self.agents_ids]
+        others_debt = np.array([self.model[f_id].deb for f_id in self.other_firms_ids])
+        agents_employed = [self.model[agent_id].Leff for agent_id in self.agents_ids]
+        others_employed = np.array([self.model[f_id].Leff for f_id in self.other_firms_ids])
+        agents_capital = [self.model[agent_id].K for agent_id in self.agents_ids]
+        others_capital = np.array([self.model[f_id].K for f_id in self.other_firms_ids])
+        agents_equity = [self.model[agent_id].A for agent_id in self.agents_ids]
+        others_equity = np.array([self.model[f_id].A for f_id in self.other_firms_ids])
+        agents_investment = [self.model[agent_id].investment for agent_id in self.agents_ids]
+        others_investment = np.array([self.model[f_id].investment for f_id in self.other_firms_ids])
+        agents_liquidity = [self.model[agent_id].liquidity for agent_id in self.agents_ids]
+        others_liquidity = np.array([self.model[f_id].liquidity for f_id in self.other_firms_ids])
+
+        info = {
+            # model variables
+            "Y_real": self.model.Y_real,                    # GDP adjusted for inflation
+            "Y_nominal_tot": self.model.Y_nominal_tot,      # nominal GDP
+            "gdp_deflator": self.model.gdp_deflator,
+            "inflationRate": self.model.inflationRate,
+            "consumption": self.model.consumption,
+            "wb": self.model.wb,                            # wage rate
+            "Un": self.model.Un,                            # unemployment rate
+            "bankruptcy_rate": self.model.bankruptcy_rate,
+            "totalDeb": self.model.totalDeb,
+            "totalDeb_k": self.model.totalDeb_k,
+            "Investment": self.model.Investment,
+            "totK": self.model.totK,
+            "inventories": self.model.inventories,
+            "totE": self.model.totE,
+            "dividendsB": self.model.dividendsB,
+            "profitsB": self.model.profitsB,
+            "GB": self.model.GB,
+            "deficitGDP": self.model.deficitGDP,
+            "bonds": self.model.bonds,
+            "avg_price": self.model.price,                  # average production good price
+
+            # firms variables
+            "agents_production": agents_production,
+            "others_production": (np.mean(others_production), np.std(others_production)),
+            "agents_sales": agents_sales,
+            "others_sales": (np.mean(others_sales), np.std(others_sales)),
+            "agents_debt": agents_debt,
+            "others_debt": (np.mean(others_debt), np.std(others_debt)),
+            "agents_employment": agents_employed,
+            "others_employment": (np.mean(others_employed), np.std(others_employed)),
+            "agents_capital": agents_capital,
+            "others_capital": (np.mean(others_capital), np.std(others_capital)),
+            "agents_equity": agents_equity,
+            "others_equity": (np.mean(others_equity), np.std(others_equity)),
+            "agents_investment": agents_investment,
+            "others_investment": (np.mean(others_investment), np.std(others_investment)),
+            "agents_liquidity": agents_liquidity,
+            "others_liquidity": (np.mean(others_liquidity), np.std(others_liquidity)),
+        }
+        return info
