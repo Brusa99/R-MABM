@@ -397,4 +397,69 @@ class Cats(gym.Env):
 
         return self.t >= self.T
 
+    def _get_reward(self):
+        """Compute the reward for the RL agents."""
+
+        if self.reward_type == "profits":
+            return self._get_profits_reward()
+        elif self.reward_type == "rms":
+            return self._get_rms_reward()
+        else:
+            raise ValueError(
+                f"Invalid reward type. Must be 'profits' or 'rms'. Got {self.reward_type}. "
+                "This should not happen, as it is checked in the __init__ method."
+            )
+
+    def _get_profits_reward(self) -> list[float]:
+        """Reward is equal to profits unless the firm is bankrupt, in which case it is set to a negative value."""
+
+        reward = []
+        for f_id in self.agents_ids:
+            # capital depreciation
+            dep = self.model.params["eta"] * self.model[f_id].Y_prev / self.model.params["k"]
+            try:
+                dep_value_denominator = self.model[f_id].K + dep - self.model[f_id].investment
+                dep_value = dep * self.model[f_id].capital_value / dep_value_denominator
+            except ZeroDivisionError:
+                dep_value = 0
+                warnings.warn(
+                    f"""division by zero in 'depreciation value' for agent {f_id}, setting to 0.
+                    This is not expected and should be investigated.
+                    'depreciation value' denominator is given by:
+                        capital {self.model[f_id].K} + depreciation {dep} - investment {self.model[f_id].investment}."""
+                )
+
+            # revenues
+            RIC = self.model[f_id].P * self.model[f_id].Q
+
+            # calculate profits and transform them in real terms
+            profits = RIC - self.model[f_id].wages - self.model[f_id].interests - dep_value
+            profits = profits * self.model.init_price / self.model.price
+
+            # nan values are set to 0 (underflow)
+            if np.isnan(profits):
+                profits = 0
+                warnings.warn(f"profits for agent {f_id} are nan (likely underflow), setting to 0.")
+
+            # overwrite with a substantial negative reward if the firm is bankrupt
+            if self.model[f_id].A <= 0:
+                profits = self.bankruptcy_reward
+
+            reward.append(profits)
+        return reward
+
+    def _get_rms_reward(self) -> list[float]:
+        """Reward is equal to the revenue market share of the agent."""
+
+        # calculate revenue of all C-firms
+        total_revenue = sum([self.model[f_id].P * self.model[f_id].Q for f_id in self.agents_ids])
+        total_revenue += sum([self.model[f_id].P * self.model[f_id].Q for f_id in self.other_firms_ids])
+
+        # calculate the reward for each agent
+        reward = []
+        for f_id in self.agents_ids:
+            RIC = self.model[f_id].P * self.model[f_id].Q
+            reward.append(RIC / total_revenue)
+        return reward
+
 
