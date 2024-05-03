@@ -128,9 +128,12 @@ class QLearner:
             next_obs: next observation from the environment
             terminated: whether the episode is terminated
 
+        Raises:
+            TypeError: if next_obs is None and the episode is not terminated
+
         """
         if next_obs is None and not terminated:
-            raise TypeError("next_obs should be provided if the episode is not terminated")
+            raise TypeError("next_obs can't be None if the episode is not terminated")
 
         # calculate the update delta
         if terminated:
