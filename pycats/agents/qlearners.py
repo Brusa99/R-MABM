@@ -39,6 +39,9 @@ class QLearner:
         if not 0 <= epsilon_zero <= 1:
             warnings.warn("epsilon should be in [0, 1]")
 
+        # save last action indexes for training
+        self._last_action = None
+
     def bin_obs(self, obs: dict[str, float]) -> tuple[int, int]:
         """Discretize the continuous observation space
 
@@ -71,3 +74,39 @@ class QLearner:
         price_delta_idx = np.abs(price_delta_poles - price_delta).argmin()
 
         return firm_stock_idx, price_delta_idx
+
+    def get_action(self, obs: dict[str, float]) -> tuple[float, float]:
+        """Choose an action based on epsilon-greedy policy
+
+        The RL agent bins the observation obtained from the environment and chooses the action to take.
+        The action is chosen at random with probability epsilon, and with probability 1-epsilon, the action is chosen
+        based on the maximum Q value of Q(obs[0], obs[1], *, *).
+        The action is then mapped to the continuous action space, linearly divided in bins between the environment
+        provided bounds.
+
+        Args:
+            obs: observation from the environment
+
+        Returns:
+            chosen production factor and price factor
+
+        """
+        # get the Q-table indexes of the action
+        if np.random.rand() < self.epsilon:
+            prod_index = np.random.randint(0, self.Q.shape[2])
+            price_index = np.random.randint(0, self.Q.shape[3])
+        else:  # take action with max Q value
+            firm_stock_idx, price_delta_idx = self.bin_obs(obs)
+            prod_index, price_index = np.unravel_index(
+                np.argmax(self.Q[firm_stock_idx, price_delta_idx]),
+                self.Q.shape[2:]
+            )
+        self._last_action = (prod_index, price_index)
+
+        # get the action values s.t. 0 goes to the lower bound and 1 goes to the upper bound
+        prod_factor = self.bounds["act_production_factor"][0] + prod_index * (
+                self.bounds["act_production_factor"][1] - self.bounds["act_production_factor"][0]) / (self.Q.shape[2]-1)
+        price_factor = self.bounds["act_price_factor"][0] + price_index * (
+                self.bounds["act_price_factor"][1] - self.bounds["act_price_factor"][0]) / (self.Q.shape[3]-1)
+
+        return prod_factor, price_factor

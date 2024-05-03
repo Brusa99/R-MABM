@@ -15,8 +15,8 @@ class AgentTestCase(unittest.TestCase):
     bounds = {
         "obs_firm_stock": (-4.0, 4.0),
         "obs_price_delta": (-1.0, 7.0),
-        "act_production_factor": (0.7, 1.3),
-        "act_price_factor": (0.7, 1.3),
+        "act_production_factor": (0.8, 1.2),
+        "act_price_factor": (0.8, 1.2),
     }
     env = Cats(gym_spaces_bounds=bounds)
 
@@ -59,6 +59,29 @@ class AgentTestCase(unittest.TestCase):
         obs = {"firm_stock": 0.2, "price_delta": 0.2}
         obs_idx = agent.bin_obs(obs)
         self.assertEqual(obs_idx, (4, 1))
+
+    def test_actions(self):
+        agent = QLearner(
+            agent_id=self.agent_id,
+            environment=self.env,
+            n_bins=self.n_bins,
+            epsilon_zero=0,
+        )
+
+        # take an observation that will get mapped to (0, 0)
+        obs = {"firm_stock": -100, "price_delta": -100}
+        # max action indexes in Q table
+        max_act_idx = (self.n_bins-1, self.n_bins-1)
+
+        # increase Q value for max action in obs (0, 0)
+        agent.Q[0, 0, *max_act_idx] = 1
+
+        prod_factor, price_factor = agent.get_action(obs)
+        # check indexes
+        self.assertEqual(agent._last_action, max_act_idx)
+        # check values
+        self.assertEqual(prod_factor, 1.2)
+        self.assertEqual(price_factor, 1.2)
 
 
 if __name__ == '__main__':
