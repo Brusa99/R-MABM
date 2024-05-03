@@ -3,7 +3,7 @@ from gymnasium import register
 from .cats import Cats
 
 register(
-    id="Cats-v0",
+    id="Cats",
     entry_point="pycats.environments:Cats",
 )
 

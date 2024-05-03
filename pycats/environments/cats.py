@@ -223,6 +223,8 @@ class Cats(gym.Env):
             if key not in gym_spaces_bounds:
                 gym_spaces_bounds[key] = value
 
+        self.gym_spaces_bounds = gym_spaces_bounds
+
         self.observation_space = gym.spaces.Dict(
             {
                 "firm_stock": gym.spaces.Box(low=gym_spaces_bounds["obs_firm_stock"][0],
