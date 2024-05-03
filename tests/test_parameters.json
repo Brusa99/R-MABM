@@ -1,0 +1,26 @@
+{
+  "z_c": 4,
+
+  "theta": 0.05,
+  "delta": 0.5,
+  "alpha": 0.66667,
+  "k": 0.33333,
+  "div": 0.2,
+  "barX": 0.85,
+  "inventory_depreciation": 0.3,
+  "b1": -15,
+  "b2": 13,
+  "b_k1": -5,
+  "b_k2": 5,
+  "interest_rate": 0.01,
+  "subsidy": 0,
+  "maastricht": 0.0,
+  "target_deficit": 0.01,
+  "tax_rate": 0.0,
+  "wage_update_up": 0.1,
+  "wage_update_down": 0.01,
+  "u_target": 0.1,
+  "wb": 1.0,
+  "tax_rate_d": 0.0,
+  "r_f": 0.01
+}
