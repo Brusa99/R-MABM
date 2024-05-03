@@ -110,3 +110,37 @@ class QLearner:
                 self.bounds["act_price_factor"][1] - self.bounds["act_price_factor"][0]) / (self.Q.shape[3]-1)
 
         return prod_factor, price_factor
+
+    def train(self, obs: dict[str, float], reward: float, next_obs: dict[str, float] | None, terminated: bool) -> None:
+        """Update Q table based on the reward obtained after taking the last action.
+
+        The agent updates its Q table based on the reward and the next state observed obtained after taking the last
+        action. The last action is not passed as an argument since the indexes are required and is saved in the class.
+
+        The update rule is:
+            Q(s, a) <- (1 - alpha) * Q(s, a) + alpha * (r + gamma * max_a(Q(s', a)))
+
+        If the episode terminated early the update rule is truncated.
+
+        Args:
+            obs: current observation from the environment
+            reward: reward obtained after taking the last action
+            next_obs: next observation from the environment
+            terminated: whether the episode is terminated
+
+        """
+        if next_obs is None and not terminated:
+            raise TypeError("next_obs should be provided if the episode is not terminated")
+
+        # calculate the update delta
+        if terminated:
+            delta = reward - self.Q[(*self.bin_obs(obs), *self._last_action)]
+        else:
+            firm_stock_idx, price_delta_idx = self.bin_obs(next_obs)
+            delta = (reward
+                     + self.gamma * np.max(self.Q[firm_stock_idx, price_delta_idx])
+                     - self.Q[(*self.bin_obs(obs), *self._last_action)])
+
+        # update Q table
+        self.Q[(*self.bin_obs(obs), *self._last_action)] += self.alpha * delta
+

@@ -83,6 +83,30 @@ class AgentTestCase(unittest.TestCase):
         self.assertEqual(prod_factor, 1.2)
         self.assertEqual(price_factor, 1.2)
 
+    def test_train(self):
+        agent = QLearner(
+            agent_id=self.agent_id,
+            environment=self.env,
+            n_bins=3,
+            epsilon_zero=0,
+            gamma=self.gamma,
+            alpha=self.alpha
+        )
+        # take an observation that will get mapped to (0, 0) and (2, 2)
+        obs = {"firm_stock": -100, "price_delta": -100}
+        next_obs = {"firm_stock": 100, "price_delta": 100}
+        reward = 1
+
+        # perform the step to get the action (we manually set the Q value to 1)
+        agent.Q[0, 0, 0, 0] = 1
+        agent.get_action(obs)  # this will set _last_action to (0, 0)
+
+        # perform the train step
+        agent.train(obs, reward, next_obs, terminated=False)
+        # check the Q value
+        exp_value = (1 - self.alpha) * 1 + self.alpha * (reward + self.gamma * 0)
+        self.assertEqual(agent.Q[0, 0, 0, 0], exp_value)
+
 
 if __name__ == '__main__':
     unittest.main()
