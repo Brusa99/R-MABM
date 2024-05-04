@@ -14,7 +14,7 @@ class Dummy:
         self.agent_id = agent_id
 
     @staticmethod
-    def bin_state(*args, **kwargs) -> tuple[int, int]:
+    def bin_obs(*args, **kwargs) -> tuple[int, int]:
         """Dummy method that doesn't do anything.
 
         The method returns a fixed value of (-1, -1) to be compatible with the return of other agents classes.

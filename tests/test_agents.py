@@ -1,10 +1,9 @@
 import unittest
 
-from pycats.agents.qlearners import QLearner
-from pycats.environments import Cats
+from pycats import QLearner, Dummy, Cats
 
 
-class AgentTestCase(unittest.TestCase):
+class QLearnerTestCase(unittest.TestCase):
     agent_id = 0
     n_bins = 9
     alpha = 0.1
@@ -60,7 +59,7 @@ class AgentTestCase(unittest.TestCase):
         obs_idx = agent.bin_obs(obs)
         self.assertEqual(obs_idx, (4, 1))
 
-    def test_actions(self):
+    def test_get_action(self):
         agent = QLearner(
             agent_id=self.agent_id,
             environment=self.env,
@@ -106,6 +105,26 @@ class AgentTestCase(unittest.TestCase):
         # check the Q value
         exp_value = (1 - self.alpha) * 1 + self.alpha * (reward + self.gamma * 0)
         self.assertEqual(agent.Q[0, 0, 0, 0], exp_value)
+
+
+class DummyTestCase(unittest.TestCase):
+    agent_id = 0
+
+    def test_agent_init(self):
+        agent = Dummy(agent_id=self.agent_id)
+        self.assertEqual(agent.agent_id, self.agent_id)
+
+    def test_bin_obs(self):
+        agent = Dummy(agent_id=self.agent_id)
+        self.assertEqual(agent.bin_obs(), (-1, -1))
+
+    def test_get_action(self):
+        agent = Dummy(agent_id=self.agent_id)
+        self.assertEqual(agent.get_action(), "dummy")
+
+    def test_train(self):
+        agent = Dummy(agent_id=self.agent_id)
+        agent.train()
 
 
 if __name__ == '__main__':
