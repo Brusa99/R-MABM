@@ -1,5 +1,4 @@
 import warnings
-from typing import Iterable, Callable
 
 import numpy as np
 
@@ -7,6 +6,25 @@ from pycats.environments import Cats
 
 
 class QLearner:
+    """Q-Learning agent for the Cats environment.
+
+    The Q-Learning agent learns the optimal policy by updating the Q table based on the reward and the next state
+    obtained after taking an action.
+    The agent bins the continuous observation space into discrete values to index the Q table. The action is chosen
+    based on an epsilon-greedy policy, where the action is chosen at random with probability epsilon, otherwise the
+    action is chosen based on the maximum Q value of Q(obs[0], obs[1], *, *).
+
+    Args:
+        agent_id: unique identifier of the agent, derived from the environment where the agent will be used.
+        environment: Cats environment where the agent will be used. Used to get the bounds of the observation and action
+            spaces.
+        n_bins: number of bins to discretize the continuous observation space. If only one value is given, the same
+            value is used for all features. If a tuple of length 4 is given, each value corresponds to a feature.
+        alpha: learning rate of the agent.
+        gamma: discount factor of the agent.
+        epsilon_zero: initial epsilon value for the epsilon-greedy policy.
+
+    """
     def __init__(
             self,
             agent_id: int,
@@ -146,4 +164,3 @@ class QLearner:
 
         # update Q table
         self.Q[(*self.bin_obs(obs), *self._last_action)] += self.alpha * delta
-
