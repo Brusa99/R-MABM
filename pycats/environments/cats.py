@@ -1,9 +1,10 @@
 import random
 import json
 import csv
-from typing import Dict, Tuple, Any, SupportsFloat
+from typing import Dict, Tuple, Any, SupportsFloat, override
 from pathlib import Path
 import warnings
+import math
 
 import numpy as np
 
@@ -404,6 +405,7 @@ class Cats(gym.Env):
 
             # compute the new values
             exp_demand = prev_demands[index] * exp_demand_factor
+
             if self._price_change == "agent_price":
                 firm_price = prev_prices[index] * firm_price_factor
             elif self._price_change == "avg_price":
@@ -578,3 +580,81 @@ class Cats(gym.Env):
             "others_liquidity": (np.mean(others_liquidity), np.std(others_liquidity)),
         }
         return info
+
+
+class CatsLog(Cats):
+    """Cats environment with logarithmic observations and actions.
+
+    This class overrides the `Cats` environment to provide a version with logarithmic observations and actions.
+    In particular the differences are:
+
+    * Observations:
+        - `firm_stock` is given by log(production/demand)
+        - `price_delta` is given by log(agent_price/avg_price)
+    * Actions:
+        - `production_factor` is given by exp(log(demand) + action_value[0])
+        - `price_factor` is given by exp(log(seleced_price) + action_value[1]), where _selected_price_ depends on the
+          price mechanism selected (agent_price or avg_price).
+
+    See Also:
+        Cats: The original Cats environment.
+
+    """
+
+    _default_gym_spaces_bounds: Dict = {
+        "obs_firm_stock": (-2.0, 2.0),
+        "obs_price_delta": (-2.0, 2.0),
+        "act_production_factor": (-0.3, 0.3),
+        "act_price_factor": (-0.3, 0.3),
+    }
+
+    @override
+    def _get_obs(self) -> list[ObsType]:
+        """Return the (logaritmic version of the) observations for the RL agents."""
+
+        obs = []
+        for f_id in self.agents_ids:
+            # compute observations
+            firm_stock = math.log(self.model[f_id].Y_prev + 1e-8) - math.log(self.model[f_id].Yd + 1e-8)
+            price = math.log(self.model[f_id].P + 1e-8) - math.log(self.model.price + 1e-8)
+
+            obs.append(
+                {
+                    "firm_stock": firm_stock,
+                    "price_delta": price,
+                }
+            )
+        return obs
+
+    @override
+    def _implement_action(self, actions: list[ActType], prev_demands: list[float], prev_prices: list[float]) -> None:
+        """Overwrite the decision of the julia agents with the provided actions for RL controlled firms."""
+
+        for index, f_id in enumerate(self.agents_ids):
+            # ignore dummy actions
+            if actions[index] == "dummy":
+                continue
+
+            # unpack
+            exp_demand_factor, firm_price_factor = actions[index]
+
+            # compute the new values
+            exp_demand = math.exp(math.log(prev_demands[index] + 1e-8) + exp_demand_factor)
+
+            if self._price_change == "agent_price":
+                firm_price = math.exp(math.log(prev_prices[index] + 1e-8) + firm_price_factor)
+            elif self._price_change == "avg_price":
+                firm_price = math.exp(math.log(self.model.price + 1e-8) + firm_price_factor)
+            else:
+                raise ValueError(
+                    f"Invalid price change mechanism. Must be 'agent_price' or 'avg_price'. Got {self._price_change} "
+                    f"This should not happen, as it is checked in the __init__ method."
+                )
+
+            # adjust (minium demand is alpha = at least 1 worker)
+            if exp_demand < self.model.params["alpha"]:
+                exp_demand = self.model.params["alpha"]
+
+            # modify in the julia model
+            self.model[f_id].De = exp_demand
+            self.model[f_id].P = firm_price
