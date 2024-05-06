@@ -47,13 +47,15 @@ class Cats(gym.Env):
             'obs_firm_stock', 'obs_price_delta', 'act_production_factor', 'act_price_factor'. The values are tuples with
             the lower and upper bounds for the spaces. If None, the default values are used. If the dictionary only has
             some of the keys, the default values are used for the missing keys.
+        info_level: Level of information returned by the environment after `step` is called. 0 returns no information
+            (empty dictionary), 1 returns information used for plotting, 2 returns all information (default).
 
     Attributes:
         t: current time step
         metadata: Metadata for the _gymnasium_ interface.
 
     Raises:
-        ValueError: If the reward_type, price_change or render_mode are invalid.
+        ValueError: If the reward_type, price_change, render_mode or params are invalid.
         
     """
 
@@ -119,6 +121,7 @@ class Cats(gym.Env):
             bankruptcy_reward: int = -100,
             render_mode: Dict[str, Any] | None = None,
             gym_spaces_bounds: Dict[str, Tuple[float, float]] | None = None,
+            info_level: int = 1,
     ):
         self.T = T
         self.W = W
@@ -127,6 +130,7 @@ class Cats(gym.Env):
         self.t_burnin = t_burnin
         self.n_agents = n_agents
         self.bankruptcy_reward = bankruptcy_reward
+        self.info_level = info_level
 
         self._load_parameters(params)
 
@@ -313,7 +317,8 @@ class Cats(gym.Env):
             Environment info dictionary
 
         Raises:
-            ValueError: If the number of actions is different from the number of agents.
+            ValueError: If the number of actions is different from the number of agents or the price change mechanism is
+                invalid.
 
         """
         # check if input is valid
@@ -520,66 +525,76 @@ class Cats(gym.Env):
     def _get_info(self) -> dict[str, Any]:
         """Return the environment info."""
 
-        # TODO: add info level variable to control the amount of information returned
+        if self.info_level == 0:
+            return {}
 
-        agents_production = [self.model[agent_id].Y_prev * self.model.price for agent_id in self.agents_ids]
-        others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self.other_firms_ids])
         agents_sales = [self.model[agent_id].Q for agent_id in self.agents_ids]
         others_sales = np.array([self.model[f_id].Q for f_id in self.other_firms_ids])
-        agents_debt = [self.model[agent_id].deb for agent_id in self.agents_ids]
-        others_debt = np.array([self.model[f_id].deb for f_id in self.other_firms_ids])
-        agents_employed = [self.model[agent_id].Leff for agent_id in self.agents_ids]
-        others_employed = np.array([self.model[f_id].Leff for f_id in self.other_firms_ids])
-        agents_capital = [self.model[agent_id].K for agent_id in self.agents_ids]
-        others_capital = np.array([self.model[f_id].K for f_id in self.other_firms_ids])
-        agents_equity = [self.model[agent_id].A for agent_id in self.agents_ids]
-        others_equity = np.array([self.model[f_id].A for f_id in self.other_firms_ids])
-        agents_investment = [self.model[agent_id].investment for agent_id in self.agents_ids]
-        others_investment = np.array([self.model[f_id].investment for f_id in self.other_firms_ids])
-        agents_liquidity = [self.model[agent_id].liquidity for agent_id in self.agents_ids]
-        others_liquidity = np.array([self.model[f_id].liquidity for f_id in self.other_firms_ids])
 
         info = {
             # model variables
-            "Y_real": self.model.Y_real,                    # GDP adjusted for inflation
-            "Y_nominal_tot": self.model.Y_nominal_tot,      # nominal GDP
-            "gdp_deflator": self.model.gdp_deflator,
-            "inflationRate": self.model.inflationRate,
-            "consumption": self.model.consumption,
-            "wb": self.model.wb,                            # wage rate
-            "Un": self.model.Un,                            # unemployment rate
+            "Y_real": self.model.Y_real,
+            "wb": self.model.wb,
+            "Un": self.model.Un,
             "bankruptcy_rate": self.model.bankruptcy_rate,
-            "totalDeb": self.model.totalDeb,
-            "totalDeb_k": self.model.totalDeb_k,
-            "Investment": self.model.Investment,
-            "totK": self.model.totK,
-            "inventories": self.model.inventories,
-            "totE": self.model.totE,
-            "dividendsB": self.model.dividendsB,
-            "profitsB": self.model.profitsB,
-            "GB": self.model.GB,
-            "deficitGDP": self.model.deficitGDP,
-            "bonds": self.model.bonds,
-            "avg_price": self.model.price,                  # average production good price
+            "avg_price": self.model.price,
 
             # firms variables
-            "agents_production": agents_production,
-            "others_production": (np.mean(others_production), np.std(others_production)),
             "agents_sales": agents_sales,
             "others_sales": (np.mean(others_sales), np.std(others_sales)),
-            "agents_debt": agents_debt,
-            "others_debt": (np.mean(others_debt), np.std(others_debt)),
-            "agents_employment": agents_employed,
-            "others_employment": (np.mean(others_employed), np.std(others_employed)),
-            "agents_capital": agents_capital,
-            "others_capital": (np.mean(others_capital), np.std(others_capital)),
-            "agents_equity": agents_equity,
-            "others_equity": (np.mean(others_equity), np.std(others_equity)),
-            "agents_investment": agents_investment,
-            "others_investment": (np.mean(others_investment), np.std(others_investment)),
-            "agents_liquidity": agents_liquidity,
-            "others_liquidity": (np.mean(others_liquidity), np.std(others_liquidity)),
         }
+
+        if self.info_level >= 2:
+            agents_production = [self.model[agent_id].Y_prev * self.model.price for agent_id in self.agents_ids]
+            others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self.other_firms_ids])
+            agents_debt = [self.model[agent_id].deb for agent_id in self.agents_ids]
+            others_debt = np.array([self.model[f_id].deb for f_id in self.other_firms_ids])
+            agents_employed = [self.model[agent_id].Leff for agent_id in self.agents_ids]
+            others_employed = np.array([self.model[f_id].Leff for f_id in self.other_firms_ids])
+            agents_capital = [self.model[agent_id].K for agent_id in self.agents_ids]
+            others_capital = np.array([self.model[f_id].K for f_id in self.other_firms_ids])
+            agents_equity = [self.model[agent_id].A for agent_id in self.agents_ids]
+            others_equity = np.array([self.model[f_id].A for f_id in self.other_firms_ids])
+            agents_investment = [self.model[agent_id].investment for agent_id in self.agents_ids]
+            others_investment = np.array([self.model[f_id].investment for f_id in self.other_firms_ids])
+            agents_liquidity = [self.model[agent_id].liquidity for agent_id in self.agents_ids]
+            others_liquidity = np.array([self.model[f_id].liquidity for f_id in self.other_firms_ids])
+
+            info.update({
+                # model variables
+                "Y_nominal_tot": self.model.Y_nominal_tot,
+                "gdp_deflator": self.model.gdp_deflator,
+                "inflationRate": self.model.inflationRate,
+                "consumption": self.model.consumption,
+                "totalDeb": self.model.totalDeb,
+                "totalDeb_k": self.model.totalDeb_k,
+                "Investment": self.model.Investment,
+                "totK": self.model.totK,
+                "inventories": self.model.inventories,
+                "totE": self.model.totE,
+                "dividendsB": self.model.dividendsB,
+                "profitsB": self.model.profitsB,
+                "GB": self.model.GB,
+                "deficitGDP": self.model.deficitGDP,
+                "bonds": self.model.bonds,
+
+                # firms variables
+                "agents_production": agents_production,
+                "others_production": (np.mean(others_production), np.std(others_production)),
+                "agents_debt": agents_debt,
+                "others_debt": (np.mean(others_debt), np.std(others_debt)),
+                "agents_employment": agents_employed,
+                "others_employment": (np.mean(others_employed), np.std(others_employed)),
+                "agents_capital": agents_capital,
+                "others_capital": (np.mean(others_capital), np.std(others_capital)),
+                "agents_equity": agents_equity,
+                "others_equity": (np.mean(others_equity), np.std(others_equity)),
+                "agents_investment": agents_investment,
+                "others_investment": (np.mean(others_investment), np.std(others_investment)),
+                "agents_liquidity": agents_liquidity,
+                "others_liquidity": (np.mean(others_liquidity), np.std(others_liquidity)),
+
+            })
         return info
 
 
