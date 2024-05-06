@@ -5,7 +5,7 @@ import gymnasium as gym
 import pycats
 
 
-class EnvironmentTestCase(unittest.TestCase):
+class CatsTestCase(unittest.TestCase):
     T = 2000
     W = 800
     F = 90
@@ -144,6 +144,44 @@ class EnvironmentTestCase(unittest.TestCase):
         # path as Path object
         env = pycats.Cats(params=Path("test_parameters.csv"))
         self.assertEqual(env.params["z_c"], 4)
+
+
+class CatsLogTestCase(unittest.TestCase):
+    T = 2000
+    W = 800
+    F = 90
+    N = 15
+    t_burnin = 100
+    n_agents = 3
+    bankruptcy_reward = -300
+
+    def test_class_init(self):
+        env = pycats.CatsLog(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
+                             bankruptcy_reward=self.bankruptcy_reward)
+
+        self.assertIsInstance(env, pycats.CatsLog)
+        self.assertIsInstance(env, pycats.Cats)
+        self.assertEqual(env.T, self.T)
+        self.assertEqual(env.W, self.W)
+        self.assertEqual(env.F, self.F)
+        self.assertEqual(env.N, self.N)
+        self.assertEqual(env.t_burnin, self.t_burnin)
+        self.assertEqual(env.n_agents, self.n_agents)
+        self.assertEqual(env.bankruptcy_reward, self.bankruptcy_reward)
+
+    def test_make(self):
+        env = gym.make("CatsLog", T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin,
+                       n_agents=self.n_agents, bankruptcy_reward=self.bankruptcy_reward)
+
+        self.assertIsInstance(env.unwrapped, pycats.CatsLog)
+        self.assertIsInstance(env.unwrapped, pycats.Cats)
+        self.assertEqual(env.get_wrapper_attr('T'), self.T)
+        self.assertEqual(env.get_wrapper_attr('W'), self.W)
+        self.assertEqual(env.get_wrapper_attr('F'), self.F)
+        self.assertEqual(env.get_wrapper_attr('N'), self.N)
+        self.assertEqual(env.get_wrapper_attr('t_burnin'), self.t_burnin)
+        self.assertEqual(env.get_wrapper_attr('n_agents'), self.n_agents)
+        self.assertEqual(env.get_wrapper_attr('bankruptcy_reward'), self.bankruptcy_reward)
 
 
 if __name__ == '__main__':
