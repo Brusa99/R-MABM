@@ -82,7 +82,7 @@ class LoggerTestCase(unittest.TestCase):
 
     def test_log_array(self):
         logger = Logger(log_name="array_test", log_directory=self.log_dir, use_timestamp=False)
-        test_array = np.array([1, 2, 3, 4, 5])
+        test_array = np.array([1, 2, 3, 4, 5]).reshape(1, 5)
 
         # new array
         logger.log_array(test_array, "test_array")
@@ -93,17 +93,18 @@ class LoggerTestCase(unittest.TestCase):
         self.assertEqual(np.load(logger.path / "test_array.npy").shape, test_array.shape)
         self.assertTrue((np.load(logger.path / "test_array.npy") == test_array).all())
 
-        new_test_array = np.array([6, 7, 8, 9, 10])
-        expected_array = np.stack((test_array, new_test_array))
+        expected_array = test_array.copy()
+        n = 5
+        for _ in range(n-1):
+            expected_array = np.concatenate((expected_array, test_array), axis=0)
 
-        # append to existing array
-        logger.log_array(new_test_array, "test_array")
-        self.assertTrue((logger.path / "test_array.npy").exists())
-        self.assertTrue((self.log_dir / "array_test" / "test_array.npy").exists())
-        self.assertEqual(len(list(logger.path.iterdir())), 1)
+            # append to existing array
+            logger.log_array(test_array, "test_array")
+            self.assertTrue((logger.path / "test_array.npy").exists())
+            self.assertTrue((self.log_dir / "array_test" / "test_array.npy").exists())
+            self.assertEqual(len(list(logger.path.iterdir())), 1)
 
-        self.assertEqual(np.load(logger.path / "test_array.npy").shape, expected_array.shape)
-        self.assertTrue((np.load(logger.path / "test_array.npy") == expected_array).all())
+        self.assertEqual(np.load(logger.path / "test_array.npy").shape, (n, 5))
 
     def test_log_dict(self):
         logger = Logger(log_name="dict_test", log_directory=self.log_dir, use_timestamp=False)

@@ -43,10 +43,11 @@ class Logger:
         # if array exists, append to file
         if file_path.exists():
             existing_array = np.load(file_path)
-            array = np.stack([existing_array, array])
+            array = np.concatenate([existing_array, array], axis=0)
             np.save(file_path, array)
         else:
             # create file and save array
+            array.reshape(1, *array.shape)
             np.save(file_path, array)
 
     def log_dict(self, dictionary_list: list[dict[str, Any]]) -> None:
