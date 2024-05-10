@@ -310,10 +310,10 @@ class Cats(gym.Env):
                 bounded) actions.
 
         Returns:
-            List of observations for each RL agent
-            List of rewards for each RL agent
-            Termination flag
-            Truncation flag
+            List of observations for each RL agent,
+            List of rewards for each RL agent,
+            Termination flag,
+            Truncation flag,
             Environment info dictionary
 
         Raises:
