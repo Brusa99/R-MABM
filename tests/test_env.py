@@ -127,22 +127,22 @@ class CatsTestCase(unittest.TestCase):
 
     def test_load_params_from_json(self):
         # path as string
-        env = pycats.Cats(params="test_parameters.json")
+        env = pycats.Cats(params="resources/test_parameters.json")
         self.assertEqual(env.params["z_c"], 4)
         self.assertEqual(env.params["z_k"], 2)  # checks if  the default value is used if not in the file
 
         # path as Path object
-        env = pycats.Cats(params=Path("test_parameters.json"))
+        env = pycats.Cats(params=Path("resources/test_parameters.json"))
         self.assertEqual(env.params["z_c"], 4)
         self.assertEqual(env.params["z_k"], 2)
 
     def test_load_params_from_csv(self):
         # path as string
-        env = pycats.Cats(params="test_parameters.csv")
+        env = pycats.Cats(params="resources/test_parameters.csv")
         self.assertEqual(env.params["z_c"], 4)
 
         # path as Path object
-        env = pycats.Cats(params=Path("test_parameters.csv"))
+        env = pycats.Cats(params=Path("resources/test_parameters.csv"))
         self.assertEqual(env.params["z_c"], 4)
 
 
