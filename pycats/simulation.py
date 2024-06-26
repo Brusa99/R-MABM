@@ -10,10 +10,10 @@ class Simulation:
     """Wrapper for simulating the Cats environment and its interaction with agents.
 
     Args:
-        env: Cats environment to simulate.
+        environment: Cats environment to simulate.
         agents: List of agents that (externally) interact with the environment.
         n_episodes: Number of distinct episodes to simulate.
-        current_episode: Current episode number (default: 1).
+        current_episode: Current episode number. You may wish to not start from the first episode for logging purposes.
 
     Attributes:
         logger: Logger object for saving data (optional). If not set, data is not saved. Initialize with `init_logger`.
@@ -25,16 +25,16 @@ class Simulation:
 
     def __init__(
             self,
-            env: Cats,
+            environment: Cats,
             agents: list[QLearner | Dummy],
             n_episodes: int = 100,
             current_episode: int = 1,
     ):
         # check for valid input
-        if env.n_agents != len(agents):
+        if environment.n_agents != len(agents):
             raise ValueError("Number of agents must match number of agents in the environment.")
 
-        self.env = env
+        self.env = environment
         self.agents = agents
         self.qlearners = [agent for agent in agents if isinstance(agent, QLearner)]
         self.n_episodes = n_episodes
@@ -118,19 +118,17 @@ class Simulation:
         # replace observation with next observation
         self._obs = self._next_obs
 
-    def run_episode(self, train: bool = False, plot: bool = True, save_plot: str | None = None) -> None:
+    def run_episode(self, train: bool = False) -> None:
         """Run the simulation for one episode.
 
         A step is performed until the episode is terminated or truncated.
         After the episode, the `reset` method is called to prepare for the next episode.
+        Current episode number is incremented by one.
+
         If a logger is initialized, the data is logged.
-        If plotting is enabled, the results are plotted and optionally saved to the specified path. If no path is given,
-        the plot is not saved.
 
         Args:
             train: Whether to train the agents in this episode
-            plot: Whether to plot the results of the episode
-            save_plot: Path to save the plot to. If None, the plot is not saved.
 
         """
         # run the episode
@@ -144,8 +142,5 @@ class Simulation:
             self.logger.log_array(np.array(self._reward_history), "rewards")
             self.logger.log_dict(self._info_history)
 
-        # plot results
-        if plot:
-            pass  # TODO: implement plotting
-
-
+        self.reset()
+        self.current_episode += 1
