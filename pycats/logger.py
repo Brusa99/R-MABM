@@ -6,6 +6,21 @@ import numpy as np
 
 
 class Logger:
+    """Utility class for logging data to files.
+
+    This class is used to save data to files. It is particularly useful for saving data from simulations or experiments.
+    It can save numpy arrays and dictionaries to files.
+
+    Data is saved in the `./log_directory/log_name${TIMESTAMP}` directory.
+    If the directory tree does not exist, it is created.
+    Optionally, a timestamp can be added to the log name. This is useful to avoid overwriting previous logs.
+
+    Args:
+        log_name: Name of the log session.
+        log_directory: Directory to save the log files. If the directory does not exist, it is created.
+        use_timestamp: If True, a timestamp is added to the log name.
+
+    """
 
     def __init__(self, log_name: str, log_directory: Path | str, use_timestamp: bool = True):
         # log session name
