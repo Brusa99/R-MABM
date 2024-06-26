@@ -3,7 +3,9 @@ from typing import Any
 
 import numpy as np
 
-from pycats import Cats, QLearner, Dummy, Logger
+from pycats import Logger
+from pycats.agents import Dummy, QLearner
+from pycats.environments import Cats
 
 
 class Simulation:

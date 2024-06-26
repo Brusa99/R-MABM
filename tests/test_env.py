@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 import gymnasium as gym
-import pycats
+from pycats.environments import Cats, CatsLog
 
 
 class CatsTestCase(unittest.TestCase):
@@ -15,10 +15,10 @@ class CatsTestCase(unittest.TestCase):
     bankruptcy_reward = -300
 
     def test_class_init(self):
-        env = pycats.Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
-                          bankruptcy_reward=self.bankruptcy_reward)
+        env = Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
+                   bankruptcy_reward=self.bankruptcy_reward)
 
-        self.assertIsInstance(env, pycats.Cats)
+        self.assertIsInstance(env, Cats)
         self.assertEqual(env.T, self.T)
         self.assertEqual(env.W, self.W)
         self.assertEqual(env.F, self.F)
@@ -31,7 +31,7 @@ class CatsTestCase(unittest.TestCase):
         env = gym.make("Cats", T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin,
                        n_agents=self.n_agents, bankruptcy_reward=self.bankruptcy_reward)
 
-        self.assertIsInstance(env.unwrapped, pycats.Cats)
+        self.assertIsInstance(env.unwrapped, Cats)
         self.assertEqual(env.get_wrapper_attr('T'), self.T)
         self.assertEqual(env.get_wrapper_attr('W'), self.W)
         self.assertEqual(env.get_wrapper_attr('F'), self.F)
@@ -76,7 +76,7 @@ class CatsTestCase(unittest.TestCase):
             "tax_rate_d": 0.1,  # taxes on dividends
             "r_f": 0.02,  # general refinancing rate
         }
-        env = pycats.Cats(params=params)
+        env = Cats(params=params)
 
         self.assertEqual(env.params["z_c"], 6)
         self.assertEqual(env.params["z_k"], 1)
@@ -114,8 +114,8 @@ class CatsTestCase(unittest.TestCase):
 
     def test_load_params_from_partial_dict(self):
         params = {"mu": 1.1}
-        def_params = pycats.Cats._default_parameters
-        env = pycats.Cats(params=params)
+        def_params = Cats._default_parameters
+        env = Cats(params=params)
 
         expected_params = params
         for key, value in def_params.items():
@@ -127,22 +127,22 @@ class CatsTestCase(unittest.TestCase):
 
     def test_load_params_from_json(self):
         # path as string
-        env = pycats.Cats(params="resources/test_parameters.json")
+        env = Cats(params="resources/test_parameters.json")
         self.assertEqual(env.params["z_c"], 4)
         self.assertEqual(env.params["z_k"], 2)  # checks if  the default value is used if not in the file
 
         # path as Path object
-        env = pycats.Cats(params=Path("resources/test_parameters.json"))
+        env = Cats(params=Path("resources/test_parameters.json"))
         self.assertEqual(env.params["z_c"], 4)
         self.assertEqual(env.params["z_k"], 2)
 
     def test_load_params_from_csv(self):
         # path as string
-        env = pycats.Cats(params="resources/test_parameters.csv")
+        env = Cats(params="resources/test_parameters.csv")
         self.assertEqual(env.params["z_c"], 4)
 
         # path as Path object
-        env = pycats.Cats(params=Path("resources/test_parameters.csv"))
+        env = Cats(params=Path("resources/test_parameters.csv"))
         self.assertEqual(env.params["z_c"], 4)
 
 
@@ -156,11 +156,11 @@ class CatsLogTestCase(unittest.TestCase):
     bankruptcy_reward = -300
 
     def test_class_init(self):
-        env = pycats.CatsLog(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
-                             bankruptcy_reward=self.bankruptcy_reward)
+        env = CatsLog(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
+                      bankruptcy_reward=self.bankruptcy_reward)
 
-        self.assertIsInstance(env, pycats.CatsLog)
-        self.assertIsInstance(env, pycats.Cats)
+        self.assertIsInstance(env, CatsLog)
+        self.assertIsInstance(env, Cats)
         self.assertEqual(env.T, self.T)
         self.assertEqual(env.W, self.W)
         self.assertEqual(env.F, self.F)
@@ -173,8 +173,8 @@ class CatsLogTestCase(unittest.TestCase):
         env = gym.make("CatsLog", T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin,
                        n_agents=self.n_agents, bankruptcy_reward=self.bankruptcy_reward)
 
-        self.assertIsInstance(env.unwrapped, pycats.CatsLog)
-        self.assertIsInstance(env.unwrapped, pycats.Cats)
+        self.assertIsInstance(env.unwrapped, CatsLog)
+        self.assertIsInstance(env.unwrapped, Cats)
         self.assertEqual(env.get_wrapper_attr('T'), self.T)
         self.assertEqual(env.get_wrapper_attr('W'), self.W)
         self.assertEqual(env.get_wrapper_attr('F'), self.F)

@@ -1,3 +1,5 @@
-from pycats.environments import Cats, CatsLog
-from pycats.agents import QLearner, Dummy
+import pycats.agents
+import pycats.environments
+
 from pycats.logger import Logger
+from pycats.simulation import Simulation

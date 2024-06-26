@@ -1,6 +1,7 @@
 import unittest
 
-from pycats import QLearner, Dummy, Cats
+from pycats.agents import QLearner, Dummy
+from pycats.environments import Cats
 
 
 class QLearnerTestCase(unittest.TestCase):
