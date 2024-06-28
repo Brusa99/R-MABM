@@ -14,6 +14,7 @@ from gymnasium.core import ObsType, RenderFrame, ActType
 
 import juliacall
 from juliacall import Main as jl
+from juliacall import VectorValue as JlVector
 
 
 class Cats(gym.Env):
@@ -53,6 +54,7 @@ class Cats(gym.Env):
     Attributes:
         t: current time step
         metadata: Metadata for the _gymnasium_ interface.
+        agents_ids: List of the ids of the RL agents.
 
     Raises:
         ValueError: If the reward_type, price_change, render_mode or params are invalid.
@@ -151,14 +153,30 @@ class Cats(gym.Env):
             self.render_mode = render_mode
 
         # initialize the model through Julia
-        jl.seval("using Cats")
+        jl.seval("using ABCredit")
         jl.seval("using Random")
         self._julia_model_init()
 
-        # get the ids of RL agents and model-controlled agents
-        _, ids_prod_firms, _, _, _ = jl.seval("Cats.get_ids")(self.model)
-        self.agents_ids = ids_prod_firms[:n_agents]
-        self.other_firms_ids = ids_prod_firms[n_agents:]  # TODO: refactor other_firms_ids to a more descriptive name
+        # TODO: check if this should be moved to julia_model_init
+
+        # get the agents of the model and RL agents
+        self._c_firms: JlVector = self.model.consumption_firms
+        self._k_firms: JlVector = self.model.capital_firms
+        self._workers: JlVector = self.model.workers
+        self._gov = self.model.gov
+        self._bank = self.model.bank
+
+        # # get a vector of all firm ids
+        # self._all_firms: JlVector = [firm for firm in self._c_firms] + [firm for firm in self._k_firms]
+        # self._all_firms = juliacall.convert(  # TODO: find a way to implement this union
+        #     T=jl.seval("Union{Vector{<:ABCredit.AbstractConsumptionFirm}, Vector{<:ABCredit.AbstractCapitalFirm}}"),
+        #     x=self._all_firms
+        # )
+
+        ids_c_firms = [firm.firm_id for firm in self._c_firms]
+        # ids of the RL agents
+        self.agents_ids: list[int] = ids_c_firms[:n_agents]
+        self._other_firms_ids = ids_c_firms[n_agents:]  # TODO: refactor _other_firms_ids to a more descriptive name
 
         self._create_spaces(gym_spaces_bounds)
 
@@ -214,8 +232,8 @@ class Cats(gym.Env):
     def _julia_model_init(self) -> None:
         """Initialize the model in Julia."""
 
-        self.model = jl.seval("Cats.initialise_model")(self.W, self.F, self.N, self.params)
-        self.model.bank["E_threshold"] = 30.0 * (self.F + self.N) * 0.1
+        self.model = jl.seval("ABCredit.initialise_model")(self.W, self.F, self.N, self.params)
+        self.model.bank.E_threshold = 30.0 * (self.F + self.N) * 0.1
 
     def _create_spaces(self, gym_spaces_bounds) -> None:
         """Create the gym spaces dicts for observations and actions"""
@@ -326,23 +344,23 @@ class Cats(gym.Env):
             raise ValueError(
                 f"Number of actions ({len(actions)}) must be equal to the number of agents ({self.n_agents})"
             )
-        # update the julia model from python
-        ids_workers, ids_prod_firms, ids_cap_firms, ids_firms, ids = jl.seval("Cats.get_ids")(self.model)
-        ids_workers_rand = ids_workers.copy()
-        ids_prod_firms_rand = ids_prod_firms.copy()
 
         # simulation stops if all firms are bankrupt
-        terminated = self._get_terminated(ids_prod_firms)
+        terminated = self._get_terminated()
 
-        jl.seval("Cats.reset_gov_and_banking_variables!")(self.model)
-        self.model.gov["bond_interest_rate"] = self.model.params["interest_rate"]  # done through a function in julia
+        jl.seval("ABCredit.reset_gov_and_banking_variables!")(self.model)
+        jl.seval("ABCredit.set_bond_interest_rate!")(self._gov, self.model)
 
         # keep old values to make actions relative
-        prev_demands = [self.model[f_id].De for f_id in self.agents_ids]
-        prev_prices = [self.model[f_id].P for f_id in self.agents_ids]
+        prev_demands = [agent.De for agent in self._c_firms[:self.n_agents]]
+        prev_prices = [agent.P for agent in self._c_firms[:self.n_agents]]
 
         # firms decisions in the original mode
-        jl.seval("Cats.find_expected_demand!")(ids_firms, self.model)
+        # TODO: check which method this is calling
+        jl.seval("ABCredit.firms_decide_price_quantity!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_decide_price_quantity!")(self._k_firms, self.model)
+
+        # TODO: continue to change the single step
         jl.seval("Cats.find_expected_investment!")(ids_prod_firms, self.model)
 
         # overwrite the decision of the agents
@@ -447,10 +465,10 @@ class Cats(gym.Env):
             )
         return obs
 
-    def _get_terminated(self, ids_prod_firms: list[int]) -> bool:
+    def _get_terminated(self) -> bool:
         """Check if all firms are bankrupt."""
 
-        return sum([self.model[f_id].A for f_id in ids_prod_firms]) == 0
+        return sum([firm.A for firm in self._c_firms]) == 0
 
     def _get_truncated(self) -> bool:
         """Check if the simulation reached the maximum number of steps."""
@@ -513,7 +531,7 @@ class Cats(gym.Env):
 
         # calculate revenue of all C-firms
         total_revenue = sum([self.model[f_id].P * self.model[f_id].Q for f_id in self.agents_ids])
-        total_revenue += sum([self.model[f_id].P * self.model[f_id].Q for f_id in self.other_firms_ids])
+        total_revenue += sum([self.model[f_id].P * self.model[f_id].Q for f_id in self._other_firms_ids])
 
         # calculate the reward for each agent
         reward = []
@@ -529,7 +547,7 @@ class Cats(gym.Env):
             return {}
 
         agents_sales = [self.model[agent_id].Q for agent_id in self.agents_ids]
-        others_sales = np.array([self.model[f_id].Q for f_id in self.other_firms_ids])
+        others_sales = np.array([self.model[f_id].Q for f_id in self._other_firms_ids])
 
         info = {
             # model variables
@@ -546,19 +564,19 @@ class Cats(gym.Env):
 
         if self.info_level >= 2:
             agents_production = [self.model[agent_id].Y_prev * self.model.price for agent_id in self.agents_ids]
-            others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self.other_firms_ids])
+            others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self._other_firms_ids])
             agents_debt = [self.model[agent_id].deb for agent_id in self.agents_ids]
-            others_debt = np.array([self.model[f_id].deb for f_id in self.other_firms_ids])
+            others_debt = np.array([self.model[f_id].deb for f_id in self._other_firms_ids])
             agents_employed = [self.model[agent_id].Leff for agent_id in self.agents_ids]
-            others_employed = np.array([self.model[f_id].Leff for f_id in self.other_firms_ids])
+            others_employed = np.array([self.model[f_id].Leff for f_id in self._other_firms_ids])
             agents_capital = [self.model[agent_id].K for agent_id in self.agents_ids]
-            others_capital = np.array([self.model[f_id].K for f_id in self.other_firms_ids])
+            others_capital = np.array([self.model[f_id].K for f_id in self._other_firms_ids])
             agents_equity = [self.model[agent_id].A for agent_id in self.agents_ids]
-            others_equity = np.array([self.model[f_id].A for f_id in self.other_firms_ids])
+            others_equity = np.array([self.model[f_id].A for f_id in self._other_firms_ids])
             agents_investment = [self.model[agent_id].investment for agent_id in self.agents_ids]
-            others_investment = np.array([self.model[f_id].investment for f_id in self.other_firms_ids])
+            others_investment = np.array([self.model[f_id].investment for f_id in self._other_firms_ids])
             agents_liquidity = [self.model[agent_id].liquidity for agent_id in self.agents_ids]
-            others_liquidity = np.array([self.model[f_id].liquidity for f_id in self.other_firms_ids])
+            others_liquidity = np.array([self.model[f_id].liquidity for f_id in self._other_firms_ids])
 
             info.update({
                 # model variables
