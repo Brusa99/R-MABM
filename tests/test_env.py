@@ -145,6 +145,17 @@ class CatsTestCase(unittest.TestCase):
         env = Cats(params=Path("resources/test_parameters.csv"))
         self.assertEqual(env.params["z_c"], 4)
 
+    def test_step(self):
+        env = Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
+                   bankruptcy_reward=self.bankruptcy_reward)
+        env.reset()
+        sample_action = [[0, 0] for _ in range(self.n_agents)]
+        obs, reward, done, info = env.step(sample_action)
+        self.assertEqual(len(obs), self.n_agents)
+        self.assertEqual(len(reward), self.n_agents)
+        self.assertEqual(len(done), self.n_agents)
+        self.assertEqual(len(info), self.n_agents)
+
 
 class CatsLogTestCase(unittest.TestCase):
     T = 2000
