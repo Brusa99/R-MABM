@@ -157,15 +157,6 @@ class Cats(gym.Env):
         jl.seval("using Random")
         self._julia_model_init()
 
-        # TODO: check if this should be moved to julia_model_init
-
-        # get the agents of the model and RL agents
-        self._c_firms: JlVector = self.model.consumption_firms
-        self._k_firms: JlVector = self.model.capital_firms
-        self._workers: JlVector = self.model.workers
-        self._gov = self.model.gov
-        self._bank = self.model.bank
-
         # # get a vector of all firm ids
         # self._all_firms: JlVector = [firm for firm in self._c_firms] + [firm for firm in self._k_firms]
         # self._all_firms = juliacall.convert(  # TODO: find a way to implement this union
@@ -174,9 +165,10 @@ class Cats(gym.Env):
         # )
 
         ids_c_firms = [firm.firm_id for firm in self._c_firms]
+        self._other_firms_ids = ids_c_firms[n_agents:]  # TODO: refactor _other_firms_ids to a more descriptive name
+
         # ids of the RL agents
         self.agents_ids: list[int] = ids_c_firms[:n_agents]
-        self._other_firms_ids = ids_c_firms[n_agents:]  # TODO: refactor _other_firms_ids to a more descriptive name
 
         self._create_spaces(gym_spaces_bounds)
 
@@ -233,6 +225,23 @@ class Cats(gym.Env):
         """Initialize the model in Julia."""
 
         self.model = jl.seval("ABCredit.initialise_model")(self.W, self.F, self.N, self.params)
+
+        # get the agents of the model and RL agents
+        self._c_firms: JlVector = self.model.consumption_firms
+        self._k_firms: JlVector = self.model.capital_firms
+        self._workers: JlVector = self.model.workers
+        self._gov = self.model.gov
+        self._bank = self.model.bank
+
+        # aggregates  # TODO: check if it copies the values or just the reference
+        self._all_firms = jl.cat(self._c_firms, self._k_firms, dims=1)
+        self._households = jl.cat(self._workers, self._c_firms, self._k_firms, dims=1)
+
+        # RL agents' firms and others
+        self._rl_firms = [firm for firm in self._c_firms[:self.n_agents]]
+        self._jlmodel_firms = [firm for firm in self._c_firms[self.n_agents:]]
+
+        # fix the threshold for the bank. This prevents overflows in the model.
         self.model.bank.E_threshold = 30.0 * (self.F + self.N) * 0.1
 
     def _create_spaces(self, gym_spaces_bounds) -> None:
@@ -345,9 +354,6 @@ class Cats(gym.Env):
                 f"Number of actions ({len(actions)}) must be equal to the number of agents ({self.n_agents})"
             )
 
-        # simulation stops if all firms are bankrupt
-        terminated = self._get_terminated()
-
         jl.seval("ABCredit.reset_gov_and_banking_variables!")(self.model)
         jl.seval("ABCredit.set_bond_interest_rate!")(self._gov, self.model)
 
@@ -360,42 +366,54 @@ class Cats(gym.Env):
         jl.seval("ABCredit.firms_decide_price_quantity!")(self._c_firms, self.model)
         jl.seval("ABCredit.firms_decide_price_quantity!")(self._k_firms, self.model)
 
-        # TODO: continue to change the single step
-        jl.seval("Cats.find_expected_investment!")(ids_prod_firms, self.model)
+        jl.seval("ABCredit.firms_decide_investment!")(self._c_firms, self.model)
 
         # overwrite the decision of the agents
         if not burnin:
             self._implement_action(actions, prev_demands, prev_prices)
 
         # model step
-        jl.seval("Cats.find_labour_demand!")(ids_firms, self.model)
-        jl.seval("Cats.get_credit!")(ids_firms, self.model)
-        jl.seval("Cats.fire_workers!")(ids_firms, self.model, ids_workers_rand)
-        jl.seval("Cats.search_job!")(ids_workers_rand, ids_firms, self.model)
-        jl.seval("Cats.produce!")(ids_firms, self.model)
-        jl.seval("Cats.buy_capgoods!")(ids_prod_firms, ids_cap_firms, self.model, ids_prod_firms_rand)
-        jl.seval("Cats.adjust_subsidy!")(ids_workers, self.model)
-        jl.seval("Cats.get_paid!")(ids_workers, self.model)
-        jl.seval("Cats.find_cons_budget!")(ids, self.model)
-        jl.seval("Cats.consume!")(ids, ids_prod_firms, self.model)
+        jl.seval("ABCredit.firms_decide_labour!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_decide_labour!")(self._k_firms, self.model)
+
+        jl.seval("ABCredit.firms_get_credit!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_get_credit!")(self._k_firms, self.model)
+
+        jl.seval("ABCredit.firms_fire_workers!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_fire_workers!")(self._k_firms, self.model)
+
+        jl.seval("ABCredit.workers_search_job!")(self._workers, self.model)
+
+        jl.seval("ABCredit.firms_produce!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_produce!")(self._k_firms, self.model)
+
+        jl.seval("ABCredit.capital_goods_market!")(self._c_firms, self._k_firms, self.model)
+
+        jl.seval("ABCredit.gov_adjusts_subsidy!")(self._gov, self.model)
+
+        jl.seval("ABCredit.workers_get_paid!")(self._workers, self.model)
+
+        jl.seval("ABCredit.households_find_cons_budget!")(self._households, self.model)
+        jl.seval("ABCredit.consumption_goods_market!")(self._households, self._c_firms, self.model)
 
         # accounting and rewards
-        jl.seval("Cats.accounting!")(ids_firms, self.model)
+        jl.seval("ABCredit.firms_accounting!")(self._c_firms, self.model)
+        jl.seval("ABCredit.firms_accounting!")(self._k_firms, self.model)
         reward = self._get_reward()
 
-        # update avg prices and tracking variables
-        jl.seval("Cats.update_price!")(self.model, ids_prod_firms)
-        jl.seval("Cats.update_price_k!")(self.model, ids_cap_firms)
-        jl.seval("Cats.update_tracking_variables!")(self.model, ids_prod_firms, ids_cap_firms, ids_workers)
+        jl.seval("ABCredit.update_tracking_variables!")(self.model)
 
-        # check for bankruptcies and update gov and wages
-        jl.seval("Cats.bankrupt!")(ids_prod_firms, ids_cap_firms, self.model, ids_workers)
-        jl.seval("Cats.bank_pays_dividends!")(self.model, ids_prod_firms, ids_cap_firms)
-        jl.seval("Cats.gov_accounting!")(self.model)
-        jl.seval("Cats.adjust_wages!")(self.model)
+        # simulation stops if all firms are bankrupt
+        jl.seval("ABCredit.firms_go_bankrupt!")(self._c_firms, self._k_firms, self.model)
+        terminated = self._get_terminated()
+
+        jl.seval("ABCredit.bank_accounting!")(self._bank, self.model)
+        jl.seval("ABCredit.gov_accounting!")(self._gov, self.model)
+
+        jl.seval("ABCredit.adjust_wages!")(self.model)
 
         # update the time step
-        self.model.timestep += 1
+        self.model.agg.timestep += 1
         self.t += 1
 
         # compute the state, reward and termination
@@ -419,7 +437,7 @@ class Cats(gym.Env):
     def _implement_action(self, actions: list[ActType], prev_demands: list[float], prev_prices: list[float]) -> None:
         """Overwrite the decision of the julia agents with the provided actions for RL controlled firms."""
 
-        for index, f_id in enumerate(self.agents_ids):
+        for index, c_firm in enumerate(self._rl_firms):
             # ignore dummy actions
             if actions[index] == "dummy":
                 continue
@@ -433,7 +451,7 @@ class Cats(gym.Env):
             if self._price_change == "agent_price":
                 firm_price = prev_prices[index] * firm_price_factor
             elif self._price_change == "avg_price":
-                firm_price = self.model.price * firm_price_factor
+                firm_price = self.model.agg.price * firm_price_factor
             else:
                 raise ValueError(
                     f"Invalid price change mechanism. Must be 'agent_price' or 'avg_price'. Got {self._price_change} "
@@ -445,17 +463,17 @@ class Cats(gym.Env):
                 exp_demand = self.model.params["alpha"]
 
             # modify in the julia model
-            self.model[f_id].De = exp_demand
-            self.model[f_id].P = firm_price
+            c_firm.De = exp_demand
+            c_firm.P = firm_price
 
     def _get_obs(self) -> list[ObsType]:
         """Return the observations for the RL agents."""
 
         obs = []  # list of observations for all agents
-        for f_id in self.agents_ids:
+        for c_firm in self._rl_firms:
             # compute observations
-            firm_stock = self.model[f_id].Y_prev - self.model[f_id].Yd
-            price = self.model[f_id].P - self.model.price
+            firm_stock = c_firm.Y_prev - c_firm.Yd
+            price = c_firm.P - self.model.agg.price
 
             obs.append(
                 {
@@ -492,35 +510,35 @@ class Cats(gym.Env):
         """Reward is equal to profits unless the firm is bankrupt, in which case it is set to a negative value."""
 
         reward = []
-        for f_id in self.agents_ids:
+        for idx, c_firm in enumerate(self._rl_firms):
             # capital depreciation
-            dep = self.model.params["eta"] * self.model[f_id].Y_prev / self.model.params["k"]
+            dep = self.model.params["eta"] * c_firm.Y_prev / self.model.params["k"]
             try:
-                dep_value_denominator = self.model[f_id].K + dep - self.model[f_id].investment
-                dep_value = dep * self.model[f_id].capital_value / dep_value_denominator
+                dep_value_denominator = c_firm.K + dep - c_firm.investment
+                dep_value = dep * c_firm.capital_value / dep_value_denominator
             except ZeroDivisionError:
                 dep_value = 0
                 warnings.warn(
-                    f"""division by zero in 'depreciation value' for agent {f_id}, setting to 0.
-                    This is not expected and should be investigated.
+                    f"""division by zero in 'depreciation value' for agent {self.agents_ids[idx]}, setting to 0.
+                    This is not expected and should be investigated, note that Julia should have thrown an error.
                     'depreciation value' denominator is given by:
-                        capital {self.model[f_id].K} + depreciation {dep} - investment {self.model[f_id].investment}."""
+                        capital {c_firm.K} + depreciation {dep} - investment {c_firm.investment}."""
                 )
 
             # revenues
-            RIC = self.model[f_id].P * self.model[f_id].Q
+            RIC = c_firm.P * c_firm.Q
 
             # calculate profits and transform them in real terms
-            profits = RIC - self.model[f_id].wages - self.model[f_id].interests - dep_value
-            profits = profits * self.model.init_price / self.model.price
+            profits = RIC - c_firm.wages - c_firm.interests - dep_value
+            profits = profits * self.model.params["init_price"] / self.model.agg.price
 
             # nan values are set to 0 (underflow)
             if np.isnan(profits):
                 profits = 0
-                warnings.warn(f"profits for agent {f_id} are nan (likely underflow), setting to 0.")
+                warnings.warn(f"profits for agent {self.agents_ids[idx]} are nan (likely underflow), setting to 0.")
 
             # overwrite with a substantial negative reward if the firm is bankrupt
-            if self.model[f_id].A <= 0:
+            if c_firm.A <= 0:
                 profits = self.bankruptcy_reward
 
             reward.append(profits)
@@ -530,13 +548,13 @@ class Cats(gym.Env):
         """Reward is equal to the revenue market share of the agent."""
 
         # calculate revenue of all C-firms
-        total_revenue = sum([self.model[f_id].P * self.model[f_id].Q for f_id in self.agents_ids])
-        total_revenue += sum([self.model[f_id].P * self.model[f_id].Q for f_id in self._other_firms_ids])
+        total_revenue = sum([rl_firm.P * rl_firm.Q for rl_firm in self._rl_firms])
+        total_revenue += sum([jl_firm.P * jl_firm.Q for jl_firm in self._jlmodel_firms])
 
         # calculate the reward for each agent
         reward = []
-        for f_id in self.agents_ids:
-            RIC = self.model[f_id].P * self.model[f_id].Q
+        for agent_firm in self._rl_firms:
+            RIC = agent_firm.P * agent_firm.Q
             reward.append(RIC / total_revenue)
         return reward
 
@@ -546,16 +564,16 @@ class Cats(gym.Env):
         if self.info_level == 0:
             return {}
 
-        agents_sales = [self.model[agent_id].Q for agent_id in self.agents_ids]
-        others_sales = np.array([self.model[f_id].Q for f_id in self._other_firms_ids])
+        agents_sales = [rl_agent.Q for rl_agent in self._rl_firms]
+        others_sales = np.array([jl_firm.Q for jl_firm in self._jlmodel_firms])
 
         info = {
             # model variables
-            "Y_real": self.model.Y_real,
-            "wb": self.model.wb,
-            "Un": self.model.Un,
-            "bankruptcy_rate": self.model.bankruptcy_rate,
-            "avg_price": self.model.price,
+            "Y_real": self.model.agg.Y_real,
+            "wb": self.model.agg.wb,
+            "Un": self.model.agg.Un,
+            "bankruptcy_rate": self.model.agg.bankruptcy_rate,
+            "avg_price": self.model.agg.price,
 
             # firms variables
             "agents_sales": agents_sales,
@@ -563,38 +581,33 @@ class Cats(gym.Env):
         }
 
         if self.info_level >= 2:
-            agents_production = [self.model[agent_id].Y_prev * self.model.price for agent_id in self.agents_ids]
-            others_production = np.array([self.model[f_id].Y_prev * self.model.price for f_id in self._other_firms_ids])
-            agents_debt = [self.model[agent_id].deb for agent_id in self.agents_ids]
-            others_debt = np.array([self.model[f_id].deb for f_id in self._other_firms_ids])
-            agents_employed = [self.model[agent_id].Leff for agent_id in self.agents_ids]
-            others_employed = np.array([self.model[f_id].Leff for f_id in self._other_firms_ids])
-            agents_capital = [self.model[agent_id].K for agent_id in self.agents_ids]
-            others_capital = np.array([self.model[f_id].K for f_id in self._other_firms_ids])
-            agents_equity = [self.model[agent_id].A for agent_id in self.agents_ids]
-            others_equity = np.array([self.model[f_id].A for f_id in self._other_firms_ids])
-            agents_investment = [self.model[agent_id].investment for agent_id in self.agents_ids]
-            others_investment = np.array([self.model[f_id].investment for f_id in self._other_firms_ids])
-            agents_liquidity = [self.model[agent_id].liquidity for agent_id in self.agents_ids]
-            others_liquidity = np.array([self.model[f_id].liquidity for f_id in self._other_firms_ids])
+            agents_production = [rl_agent.Y_prev * self.model.agg.price for rl_agent in self._rl_firms]
+            others_production = np.array([jl_firm.Y_prev * self.model.agg.price for jl_firm in self._jlmodel_firms])
+            agents_debt = [rl_agent.deb for rl_agent in self._rl_firms]
+            others_debt = np.array([jl_firm.deb for jl_firm in self._jlmodel_firms])
+            agents_employed = [rl_agent.Leff for rl_agent in self._rl_firms]
+            others_employed = np.array([jl_firm.Leff for jl_firm in self._jlmodel_firms])
+            agents_capital = [rl_agent.K for rl_agent in self._rl_firms]
+            others_capital = np.array([jl_firm.K for jl_firm in self._jlmodel_firms])
+            agents_equity = [rl_agent.A for rl_agent in self._rl_firms]
+            others_equity = np.array([jl_firm.A for jl_firm in self._jlmodel_firms])
+            agents_investment = [rl_agent.investment for rl_agent in self._rl_firms]
+            others_investment = np.array([jl_firm.investment for jl_firm in self._jlmodel_firms])
+            agents_liquidity = [rl_agent.liquidity for rl_agent in self._rl_firms]
+            others_liquidity = np.array([jl_firm.liquidity for jl_firm in self._jlmodel_firms])
 
             info.update({
                 # model variables
-                "Y_nominal_tot": self.model.Y_nominal_tot,
-                "gdp_deflator": self.model.gdp_deflator,
-                "inflationRate": self.model.inflationRate,
-                "consumption": self.model.consumption,
-                "totalDeb": self.model.totalDeb,
-                "totalDeb_k": self.model.totalDeb_k,
-                "Investment": self.model.Investment,
-                "totK": self.model.totK,
-                "inventories": self.model.inventories,
-                "totE": self.model.totE,
-                "dividendsB": self.model.dividendsB,
-                "profitsB": self.model.profitsB,
-                "GB": self.model.GB,
-                "deficitGDP": self.model.deficitGDP,
-                "bonds": self.model.bonds,
+                "Y_nominal_tot": self.model.agg.Y_nominal_tot,
+                "gdp_deflator": self.model.agg.gdp_deflator,
+                "inflationRate": self.model.agg.inflationRate,
+                "consumption": self.model.agg.consumption,
+                "totK": self.model.agg.totK,
+                "dividendsB": self._bank.dividendsB,
+                "profitsB": self._bank.profitsB,
+                "GB": self._gov.GB,
+                "deficitGDP": self._gov.deficitGDP,
+                "bonds": self._gov.bonds,
 
                 # firms variables
                 "agents_production": agents_production,
@@ -611,8 +624,8 @@ class Cats(gym.Env):
                 "others_investment": (np.mean(others_investment), np.std(others_investment)),
                 "agents_liquidity": agents_liquidity,
                 "others_liquidity": (np.mean(others_liquidity), np.std(others_liquidity)),
-
             })
+
         return info
 
 
@@ -647,10 +660,10 @@ class CatsLog(Cats):
         """Return the (logaritmic version of the) observations for the RL agents."""
 
         obs = []
-        for f_id in self.agents_ids:
+        for c_firm in self._rl_firms:
             # compute observations
-            firm_stock = math.log(self.model[f_id].Y_prev + 1e-8) - math.log(self.model[f_id].Yd + 1e-8)
-            price = math.log(self.model[f_id].P + 1e-8) - math.log(self.model.price + 1e-8)
+            firm_stock = math.log(c_firm.Y_prev + 1e-8) - math.log(c_firm.Yd + 1e-8)
+            price = math.log(c_firm.P + 1e-8) - math.log(self.model.agg.price + 1e-8)
 
             obs.append(
                 {
@@ -664,7 +677,7 @@ class CatsLog(Cats):
     def _implement_action(self, actions: list[ActType], prev_demands: list[float], prev_prices: list[float]) -> None:
         """Overwrite the decision of the julia agents with the provided actions for RL controlled firms."""
 
-        for index, f_id in enumerate(self.agents_ids):
+        for index, c_firm in enumerate(self._rl_firms):
             # ignore dummy actions
             if actions[index] == "dummy":
                 continue
@@ -678,7 +691,7 @@ class CatsLog(Cats):
             if self._price_change == "agent_price":
                 firm_price = math.exp(math.log(prev_prices[index] + 1e-8) + firm_price_factor)
             elif self._price_change == "avg_price":
-                firm_price = math.exp(math.log(self.model.price + 1e-8) + firm_price_factor)
+                firm_price = math.exp(math.log(self.model.agg.price + 1e-8) + firm_price_factor)
             else:
                 raise ValueError(
                     f"Invalid price change mechanism. Must be 'agent_price' or 'avg_price'. Got {self._price_change} "
@@ -690,5 +703,5 @@ class CatsLog(Cats):
                 exp_demand = self.model.params["alpha"]
 
             # modify in the julia model
-            self.model[f_id].De = exp_demand
-            self.model[f_id].P = firm_price
+            c_firm.De = exp_demand
+            c_firm.P = firm_price
