@@ -13,10 +13,11 @@ class CatsTestCase(unittest.TestCase):
     t_burnin = 100
     n_agents = 3
     bankruptcy_reward = -300
+    info_level = 3
 
     def test_class_init(self):
         env = Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
-                   bankruptcy_reward=self.bankruptcy_reward)
+                   bankruptcy_reward=self.bankruptcy_reward, info_level=self.info_level)
 
         self.assertIsInstance(env, Cats)
         self.assertEqual(env.T, self.T)
@@ -26,10 +27,11 @@ class CatsTestCase(unittest.TestCase):
         self.assertEqual(env.t_burnin, self.t_burnin)
         self.assertEqual(env.n_agents, self.n_agents)
         self.assertEqual(env.bankruptcy_reward, self.bankruptcy_reward)
+        self.assertEqual(env.info_level, self.info_level)
 
     def test_make(self):
         env = gym.make("Cats", T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin,
-                       n_agents=self.n_agents, bankruptcy_reward=self.bankruptcy_reward)
+                       n_agents=self.n_agents, bankruptcy_reward=self.bankruptcy_reward, info_level=self.info_level)
 
         self.assertIsInstance(env.unwrapped, Cats)
         self.assertEqual(env.get_wrapper_attr('T'), self.T)
@@ -39,6 +41,7 @@ class CatsTestCase(unittest.TestCase):
         self.assertEqual(env.get_wrapper_attr('t_burnin'), self.t_burnin)
         self.assertEqual(env.get_wrapper_attr('n_agents'), self.n_agents)
         self.assertEqual(env.get_wrapper_attr('bankruptcy_reward'), self.bankruptcy_reward)
+        self.assertEqual(env.get_wrapper_attr('info_level'), self.info_level)
 
     def test_load_params_from_full_dict(self):
         params = {
@@ -147,14 +150,27 @@ class CatsTestCase(unittest.TestCase):
 
     def test_step(self):
         env = Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
-                   bankruptcy_reward=self.bankruptcy_reward)
+                   bankruptcy_reward=self.bankruptcy_reward, info_level=self.info_level)
         env.reset()
         sample_action = [[0, 0] for _ in range(self.n_agents)]
-        obs, reward, done, info = env.step(sample_action)
+
+        # profit reward
+        obs, reward, terminated, truncated, info = env.step(sample_action)
         self.assertEqual(len(obs), self.n_agents)
         self.assertEqual(len(reward), self.n_agents)
-        self.assertEqual(len(done), self.n_agents)
-        self.assertEqual(len(info), self.n_agents)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+        self.assertIsInstance(info, dict)
+
+        # rms reward
+        env.reward_type = "rms"
+        obs, reward, terminated, truncated, info = env.step(sample_action)
+        self.assertEqual(len(obs), self.n_agents)
+        self.assertEqual(len(reward), self.n_agents)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+        self.assertIsInstance(info, dict)
+
 
 
 class CatsLogTestCase(unittest.TestCase):
@@ -193,6 +209,29 @@ class CatsLogTestCase(unittest.TestCase):
         self.assertEqual(env.get_wrapper_attr('t_burnin'), self.t_burnin)
         self.assertEqual(env.get_wrapper_attr('n_agents'), self.n_agents)
         self.assertEqual(env.get_wrapper_attr('bankruptcy_reward'), self.bankruptcy_reward)
+
+    def test_step(self):
+        env = CatsLog(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
+                      bankruptcy_reward=self.bankruptcy_reward)
+        env.reset()
+        sample_action = [[0, 0] for _ in range(self.n_agents)]
+
+        # profit reward
+        obs, reward, terminated, truncated, info = env.step(sample_action)
+        self.assertEqual(len(obs), self.n_agents)
+        self.assertEqual(len(reward), self.n_agents)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+        self.assertIsInstance(info, dict)
+
+        # rms reward
+        env.reward_type = "rms"
+        obs, reward, terminated, truncated, info = env.step(sample_action)
+        self.assertEqual(len(obs), self.n_agents)
+        self.assertEqual(len(reward), self.n_agents)
+        self.assertIsInstance(terminated, bool)
+        self.assertIsInstance(truncated, bool)
+        self.assertIsInstance(info, dict)
 
 
 if __name__ == '__main__':
