@@ -157,18 +157,9 @@ class Cats(gym.Env):
         jl.seval("using Random")
         self._julia_model_init()
 
-        # # get a vector of all firm ids
-        # self._all_firms: JlVector = [firm for firm in self._c_firms] + [firm for firm in self._k_firms]
-        # self._all_firms = juliacall.convert(  # TODO: find a way to implement this union
-        #     T=jl.seval("Union{Vector{<:ABCredit.AbstractConsumptionFirm}, Vector{<:ABCredit.AbstractCapitalFirm}}"),
-        #     x=self._all_firms
-        # )
-
         ids_c_firms = [firm.firm_id for firm in self._c_firms]
-        self._other_firms_ids = ids_c_firms[n_agents:]  # TODO: refactor _other_firms_ids to a more descriptive name
-
-        # ids of the RL agents
         self.agents_ids: list[int] = ids_c_firms[:n_agents]
+        self._other_firms_ids = ids_c_firms[n_agents:]  # TODO: refactor _other_firms_ids to a more descriptive name
 
         self._create_spaces(gym_spaces_bounds)
 
@@ -233,9 +224,13 @@ class Cats(gym.Env):
         self._gov = self.model.gov
         self._bank = self.model.bank
 
-        # aggregates  # TODO: check if it copies the values or just the reference
+        # aggregates
         self._all_firms = jl.cat(self._c_firms, self._k_firms, dims=1)
         self._households = jl.cat(self._workers, self._c_firms, self._k_firms, dims=1)
+
+        # make sure it copies just the references and not the objects, as the model is updated in place
+        # (this check is here in case juliacall changes the behaviour)
+        assert self._households[0] == self._workers[0], "Aggregate is a deep copy"
 
         # RL agents' firms and others
         self._rl_firms = [firm for firm in self._c_firms[:self.n_agents]]
@@ -317,9 +312,9 @@ class Cats(gym.Env):
         return self._get_obs(), self._get_info()
 
     def step(
-        self,
-        actions: list[ActType],
-        burnin: bool = False,
+            self,
+            actions: list[ActType],
+            burnin: bool = False,
     ) -> tuple[list[ObsType], list[SupportsFloat], bool, bool, dict[str, Any]]:
         """Perform a step in the environment.
 
@@ -362,8 +357,7 @@ class Cats(gym.Env):
         prev_prices = [agent.P for agent in self._c_firms[:self.n_agents]]
 
         # firms decisions in the original mode
-        # TODO: check which method this is calling
-        jl.ABCredit.firms_decide_price_quantity_b(self._c_firms, self.model)
+        jl.ABCredit.firms_decide_price_quantity_b(self._c_firms, self.model)  # NOTE: julia has function overloading
         jl.ABCredit.firms_decide_price_quantity_b(self._k_firms, self.model)
 
         jl.ABCredit.firms_decide_investment_b(self._c_firms, self.model)
