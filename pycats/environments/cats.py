@@ -224,7 +224,7 @@ class Cats(gym.Env):
     def _julia_model_init(self) -> None:
         """Initialize the model in Julia."""
 
-        self.model = jl.seval("ABCredit.initialise_model")(self.W, self.F, self.N, self.params)
+        self.model = jl.ABCredit.initialise_model(self.W, self.F, self.N, self.params)
 
         # get the agents of the model and RL agents
         self._c_firms: JlVector = self.model.consumption_firms
@@ -305,7 +305,7 @@ class Cats(gym.Env):
         # set seeds across everything
         super().reset(seed=seed)
         random.seed(seed)
-        jl.seval("Random.seed!")(seed)
+        jl.Random.seed_b(seed)
         np.random.seed(seed)
 
         # reinitialize the model
@@ -354,8 +354,8 @@ class Cats(gym.Env):
                 f"Number of actions ({len(actions)}) must be equal to the number of agents ({self.n_agents})"
             )
 
-        jl.seval("ABCredit.reset_gov_and_banking_variables!")(self.model)
-        jl.seval("ABCredit.set_bond_interest_rate!")(self._gov, self.model)
+        jl.ABCredit.reset_gov_and_banking_variables_b(self.model)
+        jl.ABCredit.set_bond_interest_rate_b(self._gov, self.model)
 
         # keep old values to make actions relative
         prev_demands = [agent.De for agent in self._c_firms[:self.n_agents]]
@@ -363,54 +363,54 @@ class Cats(gym.Env):
 
         # firms decisions in the original mode
         # TODO: check which method this is calling
-        jl.seval("ABCredit.firms_decide_price_quantity!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_decide_price_quantity!")(self._k_firms, self.model)
+        jl.ABCredit.firms_decide_price_quantity_b(self._c_firms, self.model)
+        jl.ABCredit.firms_decide_price_quantity_b(self._k_firms, self.model)
 
-        jl.seval("ABCredit.firms_decide_investment!")(self._c_firms, self.model)
+        jl.ABCredit.firms_decide_investment_b(self._c_firms, self.model)
 
         # overwrite the decision of the agents
         if not burnin:
             self._implement_action(actions, prev_demands, prev_prices)
 
         # model step
-        jl.seval("ABCredit.firms_decide_labour!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_decide_labour!")(self._k_firms, self.model)
+        jl.ABCredit.firms_decide_labour_b(self._c_firms, self.model)
+        jl.ABCredit.firms_decide_labour_b(self._k_firms, self.model)
 
-        jl.seval("ABCredit.firms_get_credit!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_get_credit!")(self._k_firms, self.model)
+        jl.ABCredit.firms_get_credit_b(self._c_firms, self.model)
+        jl.ABCredit.firms_get_credit_b(self._k_firms, self.model)
 
-        jl.seval("ABCredit.firms_fire_workers!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_fire_workers!")(self._k_firms, self.model)
+        jl.ABCredit.firms_fire_workers_b(self._c_firms, self.model)
+        jl.ABCredit.firms_fire_workers_b(self._k_firms, self.model)
 
-        jl.seval("ABCredit.workers_search_job!")(self._workers, self.model)
+        jl.ABCredit.workers_search_job_b(self._workers, self.model)
 
-        jl.seval("ABCredit.firms_produce!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_produce!")(self._k_firms, self.model)
+        jl.ABCredit.firms_produce_b(self._c_firms, self.model)
+        jl.ABCredit.firms_produce_b(self._k_firms, self.model)
 
-        jl.seval("ABCredit.capital_goods_market!")(self._c_firms, self._k_firms, self.model)
+        jl.ABCredit.capital_goods_market_b(self._c_firms, self._k_firms, self.model)
 
-        jl.seval("ABCredit.gov_adjusts_subsidy!")(self._gov, self.model)
+        jl.ABCredit.gov_adjusts_subsidy_b(self._gov, self.model)
 
-        jl.seval("ABCredit.workers_get_paid!")(self._workers, self.model)
+        jl.ABCredit.workers_get_paid_b(self._workers, self.model)
 
-        jl.seval("ABCredit.households_find_cons_budget!")(self._households, self.model)
-        jl.seval("ABCredit.consumption_goods_market!")(self._households, self._c_firms, self.model)
+        jl.ABCredit.households_find_cons_budget_b(self._households, self.model)
+        jl.ABCredit.consumption_goods_market_b(self._households, self._c_firms, self.model)
 
         # accounting and rewards
-        jl.seval("ABCredit.firms_accounting!")(self._c_firms, self.model)
-        jl.seval("ABCredit.firms_accounting!")(self._k_firms, self.model)
+        jl.ABCredit.firms_accounting_b(self._c_firms, self.model)
+        jl.ABCredit.firms_accounting_b(self._k_firms, self.model)
         reward = self._get_reward()
 
-        jl.seval("ABCredit.update_tracking_variables!")(self.model)
+        jl.ABCredit.update_tracking_variables_b(self.model)
 
         # simulation stops if all firms are bankrupt
-        jl.seval("ABCredit.firms_go_bankrupt!")(self._c_firms, self._k_firms, self.model)
+        jl.ABCredit.firms_go_bankrupt_b(self._c_firms, self._k_firms, self.model)
         terminated = self._get_terminated()
 
-        jl.seval("ABCredit.bank_accounting!")(self._bank, self.model)
-        jl.seval("ABCredit.gov_accounting!")(self._gov, self.model)
+        jl.ABCredit.bank_accounting_b(self._bank, self.model)
+        jl.ABCredit.gov_accounting_b(self._gov, self.model)
 
-        jl.seval("ABCredit.adjust_wages!")(self.model)
+        jl.ABCredit.adjust_wages_b(self.model)
 
         # update the time step
         self.model.agg.timestep += 1
