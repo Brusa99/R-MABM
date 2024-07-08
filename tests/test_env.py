@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+import os
 
 import gymnasium as gym
 from pycats.environments import Cats, CatsLog
@@ -14,6 +15,9 @@ class CatsTestCase(unittest.TestCase):
     n_agents = 3
     bankruptcy_reward = -300
     info_level = 3
+
+    def setUp(self):
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     def test_class_init(self):
         env = Cats(T=self.T, W=self.W, F=self.F, N=self.N, t_burnin=self.t_burnin, n_agents=self.n_agents,
