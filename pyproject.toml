@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pycats_brusa99"
+version = "0.0.1"
+authors = [
+    { name = "Simone Brusatin", email = "simone.brusatin@gmail.com" },
+]
+description = "MARL interface for M-ABMs"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "gymnasium==0.29.1",
+    "juliacall==0.9.20",
+    "numpy<2.0.0",
+    "typing_extensions==4.12.2",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/Brusa99/PyCATS"
+Issues = "https://github.com/Brusa99/PyCATS/issues"
