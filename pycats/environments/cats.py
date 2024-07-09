@@ -153,7 +153,12 @@ class Cats(gym.Env):
             self.render_mode = render_mode
 
         # initialize the model through Julia
-        jl.seval("using ABCredit")
+        # jl.seval("try using ABCredit catch; import Pkg; Pkg.add('ABCredit'); using ABCredit end")
+        try:
+            jl.seval("using ABCredit")
+        except juliacall.JuliaError as e:
+            jl.seval('import Pkg; Pkg.add("ABCredit")')
+            jl.seval("using ABCredit")
         jl.seval("using Random")
         self._julia_model_init()
 
