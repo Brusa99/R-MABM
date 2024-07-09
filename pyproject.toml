@@ -21,7 +21,6 @@ dependencies = [
     "numpy<2.0.0",
     "typing_extensions==4.12.2",
 ]
-dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/Brusa99/PyCATS"
