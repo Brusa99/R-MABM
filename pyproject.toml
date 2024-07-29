@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pycats_brusa99"
+name = "rmabm_brusa99"
 version = "0.0.1"
 authors = [
     { name = "Simone Brusatin", email = "simone.brusatin@gmail.com" },
@@ -23,5 +23,5 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Brusa99/PyCATS"
-Issues = "https://github.com/Brusa99/PyCATS/issues"
+Homepage = "https://github.com/Brusa99/R-MABM"
+Issues = "https://github.com/Brusa99/R-MABM/issues"
