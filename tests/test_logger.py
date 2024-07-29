@@ -2,7 +2,7 @@ import unittest
 import shutil
 from pathlib import Path
 
-from pycats import Logger
+from rmabm import Logger
 
 import numpy as np
 

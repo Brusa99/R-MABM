@@ -1,6 +1,8 @@
-# PyCATS
+# R-MABM
 
-A Python implementation of the "CATS" model (Emergent dynamics of a macroeconomic agent based model with capital and credit, Assenza et al. (2017)).
+The _Rational-Macro Agent Based Model_.
+A Python (multi-agent) reinforcement learning interface of the "CATS" model ([_Emergent dynamics of a macroeconomic
+agent based model with capital and credit_](https://www.sciencedirect.com/science/article/abs/pii/S0165188914001572).).
 
 ## Installation
 
@@ -9,7 +11,7 @@ To download and install the package, run:
 ```bash
 git clone git@github.com:Brusa99/PyCATS.git
 cd PyCATS
-python -m pip install .
+python -m pip install -e .
 ```
 
 Python 3.12 is required.

@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 
 import gymnasium as gym
-from pycats.environments import Cats, CatsLog
+from rmabm.environments import Cats, CatsLog
 
 
 class CatsTestCase(unittest.TestCase):

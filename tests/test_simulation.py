@@ -2,9 +2,9 @@ import unittest
 import shutil
 from pathlib import Path
 
-from pycats import Simulation
-from pycats.agents import QLearner, Dummy
-from pycats.environments import Cats
+from rmabm import Simulation
+from rmabm.agents import QLearner, Dummy
+from rmabm.environments import Cats
 
 
 class SimulationTestCase(unittest.TestCase):

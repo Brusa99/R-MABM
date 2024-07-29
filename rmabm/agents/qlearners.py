@@ -2,7 +2,7 @@ import warnings
 
 import numpy as np
 
-from pycats.environments import Cats
+from rmabm.environments import Cats
 
 
 class QLearner:
