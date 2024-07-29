@@ -9,7 +9,7 @@ agent based model with capital and credit_](https://www.sciencedirect.com/scienc
 To download and install the package, run:
 
 ```bash
-git clone git@github.com:Brusa99/PyCATS.git
+git clone git@github.com:Brusa99/R-MABM.git
 cd PyCATS
 python -m pip install -e .
 ```
