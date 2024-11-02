@@ -12,13 +12,6 @@ rmabm.environments.cats module
    :undoc-members:
    :show-inheritance:
 
-rmabm.environments.single\_versions module
-------------------------------------------
-
-.. automodule:: rmabm.environments.single_versions
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Module contents
 ---------------
