@@ -100,6 +100,7 @@ class Cats(gym.Env):
         "wb": 1.0,  # initial wage rate
         "tax_rate_d": 0.0,  # taxes on dividends
         "r_f": 0.01,  # general refinancing rate
+        "E_threshold_scale": 0,
     }
 
     _default_gym_spaces_bounds: Dict = {
@@ -240,9 +241,6 @@ class Cats(gym.Env):
         # RL agents' firms and others
         self._rl_firms = [firm for firm in self._c_firms[:self.n_agents]]
         self._jlmodel_firms = [firm for firm in self._c_firms[self.n_agents:]]
-
-        # fix the threshold for the bank. This prevents overflows in the model.
-        self.model.bank.E_threshold = 30.0 * (self.F + self.N) * 0.1
 
     def _create_spaces(self, gym_spaces_bounds) -> None:
         """Create the gym spaces dicts for observations and actions"""

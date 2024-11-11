@@ -82,6 +82,7 @@ class CatsTestCase(unittest.TestCase):
             "wb": 2.0,  # initial wage rate
             "tax_rate_d": 0.1,  # taxes on dividends
             "r_f": 0.02,  # general refinancing rate
+            "E_threshold_scale": 0.1,
         }
         env = Cats(params=params)
 
@@ -118,6 +119,7 @@ class CatsTestCase(unittest.TestCase):
         self.assertEqual(env.params["wb"], 2.0)
         self.assertEqual(env.params["tax_rate_d"], 0.1)
         self.assertEqual(env.params["r_f"], 0.02)
+        self.assertEqual(env.params["E_threshold_scale"], 0.1)
 
     def test_load_params_from_partial_dict(self):
         params = {"mu": 1.1}
@@ -174,7 +176,6 @@ class CatsTestCase(unittest.TestCase):
         self.assertIsInstance(terminated, bool)
         self.assertIsInstance(truncated, bool)
         self.assertIsInstance(info, dict)
-
 
 
 class CatsLogTestCase(unittest.TestCase):
