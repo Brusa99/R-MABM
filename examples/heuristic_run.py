@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import matplotlib.pyplot as plt
 
 from rmabm.environments import Cats
 from rmabm.agents import Dummy
