@@ -139,10 +139,10 @@ class Simulation:
 
         # log data
         if self.logger:
-            self.logger.log_dict(self._obs_history)
-            self.logger.log_dict(self._act_history)
-            self.logger.log_array(np.array(self._reward_history), "rewards")
-            self.logger.log_dict(self._info_history)
+            self.logger.log_obs(self._obs_history, self.current_episode)
+            self.logger.log_act(self._act_history, self.current_episode)
+            self.logger.log_array(np.array(self._reward_history), f"ep{self.current_episode}_rewards")
+            self.logger.log_info(self._info_history, self.current_episode)
 
         self.reset()
         self.current_episode += 1
