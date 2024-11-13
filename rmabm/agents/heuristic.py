@@ -1,3 +1,8 @@
+from typing import Tuple
+
+from rmabm.environments import Cats
+
+
 class Dummy:
     """Dummy class that doesn't do anything.
 
@@ -7,11 +12,26 @@ class Dummy:
 
     Args:
         agent_id: unique identifier of the agent, derived from the environment where the agent will be used.
+        environment: environment used to deduce the action length. If None, action length will be 2.
+
+    Attributes:
+        action_length: length of the tuple returned by get_action. Deduced by the environment if provided otherwise 2.
 
     """
 
-    def __init__(self, agent_id: int):
+    def __init__(self, agent_id: int, environment: Cats | None = None):
         self.agent_id = agent_id
+
+        # length of the tuple returned by get_action
+        self.action_length: int = 2
+
+        if environment:
+            try:
+                self.action_length = environment.action_space.shape[0]
+            except TypeError:
+                # action space is a dictionary
+                self.action_length = len(environment.action_space.keys())
+
 
     @staticmethod
     def bin_obs(*args, **kwargs) -> tuple[int, int]:
@@ -33,8 +53,7 @@ class Dummy:
         """
         return -1, -1
 
-    @staticmethod
-    def get_action(*args, **kwargs) -> str:
+    def get_action(self, *args, **kwargs) -> tuple[str, ...]:
         """Dummy method that doesn't do anything.
 
         The method always returns a string "dummy" that will be ignored by the environment.
@@ -47,7 +66,7 @@ class Dummy:
             "dummy" value that will be ignored by the environment.
 
         """
-        return "dummy"
+        return ("dummy",) * self.action_length
 
     @staticmethod
     def train(*args, **kwargs):

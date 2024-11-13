@@ -114,6 +114,12 @@ class DummyTestCase(unittest.TestCase):
     def test_agent_init(self):
         agent = Dummy(agent_id=self.agent_id)
         self.assertEqual(agent.agent_id, self.agent_id)
+        self.assertEqual(agent.action_length, 2)
+
+        env = Cats(n_agents=1)
+        agent = Dummy(agent_id=env.agents_ids[0], environment=env)
+        self.assertEqual(agent.agent_id, env.agents_ids[0])
+        self.assertEqual(agent.action_length, 2)
 
     def test_bin_obs(self):
         agent = Dummy(agent_id=self.agent_id)
@@ -121,7 +127,7 @@ class DummyTestCase(unittest.TestCase):
 
     def test_get_action(self):
         agent = Dummy(agent_id=self.agent_id)
-        self.assertEqual(agent.get_action(), "dummy")
+        self.assertEqual(agent.get_action(), ("dummy", "dummy"))
 
     def test_train(self):
         agent = Dummy(agent_id=self.agent_id)

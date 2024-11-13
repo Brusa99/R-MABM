@@ -436,7 +436,7 @@ class Cats(gym.Env):
 
         for index, c_firm in enumerate(self._rl_firms):
             # ignore dummy actions
-            if actions[index] == "dummy":
+            if "dummy" in actions[index]:
                 continue
 
             # unpack
@@ -676,7 +676,7 @@ class CatsLog(Cats):
 
         for index, c_firm in enumerate(self._rl_firms):
             # ignore dummy actions
-            if actions[index] == "dummy":
+            if "dummy" in actions[index]:
                 continue
 
             # unpack
