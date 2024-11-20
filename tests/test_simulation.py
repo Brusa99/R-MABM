@@ -135,6 +135,30 @@ class SimulationTestCase(unittest.TestCase):
         sim.run_episode()
         self.assertEqual(sim.current_episode, self.current_episode + 1)
 
+    def test_train_agents(self):
+        env = Cats(n_agents=2, T=500)
+        agents = [QLearner(agent_id=agent_id, environment=env) for agent_id in env.agents_ids]
+        sim = Simulation(environment=env, agents=agents, n_episodes=10)
+
+        sim.train_agents(n_episodes=2)
+        self.assertEqual(sim.current_episode, 3)
+        for agent in agents:  # test Q matrix is not all zeros
+            self.assertNotEqual(max(agent.Q.max(), - agent.Q.min()), 0)
+
+        # test that train_agents with no args will complete the simulation
+        sim.train_agents()
+        self.assertEqual(sim.current_episode, 11)
+
+        # test a custom update function
+        def update(agent_parameter, sim_parameter):
+            agent_parameter.alpha = 0.5
+
+        sim.train_agents(n_episodes=1, update=update)
+        # method should run even if the sim.current_episode is greater than sim.n_episodes
+        self.assertEqual(sim.current_episode, 12)
+        for agent in agents:
+            self.assertEqual(agent.alpha, 0.5)
+
 
 if __name__ == '__main__':
     unittest.main()

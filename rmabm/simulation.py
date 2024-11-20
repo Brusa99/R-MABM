@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from gymnasium.core import ObsType, ActType
@@ -147,6 +147,44 @@ class Simulation:
 
         self.reset()
         self.current_episode += 1
+
+    def train_agents(self, n_episodes: int | None = None, update: Callable[..., None] | None = None) -> None:
+        """Train the agents for a given number of episodes.
+
+        Run a given number of episodes and train the agents at the end of each episode.
+        If the number of episodes is not given, it will train until the current episode number reaches the number of
+        episodes set at initialization.
+
+        The method will automatically update the agents parameters at the end of each episode. It will use the provided
+        update function where applicable (i.e.: it will be applied to no effect for Dummy agents).
+        The function should have the following signature:
+            `def update(agent, simulation) -> None`
+        The `simulation` argument is the Simulation object that called the function (i.e.: self) and can be ignored. It
+        can be used to use the simulation's information, like the current episode number or the total number of agents
+        to update the agents' parameters.
+        If the function is not provided, the agent's parameters will be updated as follows:
+            - epsilon <- max(0.01, 0.9 ^ current_episode_number)
+            - alpha is kept constant
+
+        Args:
+            n_episodes: Number of episodes to train the agents. Defaults to the number of episodes set at initialization
+            update: Function to update the agents' parameters at the end of each episode. The function should accept the
+                agent and the simulation as an argument and return None. If not provided, the agents' parameters are
+                updated as described above.
+
+        """
+        n_episodes = n_episodes or (self.n_episodes - self.current_episode + 1)
+        update = update or self._default_update
+
+        for _ in range(n_episodes):
+            self.run_episode(train=True)
+            # update the agents
+            for agent in self.qlearners:
+                update(agent, self)
+
+    @staticmethod
+    def _default_update(agent: QLearner, simulation) -> None:
+        agent.epsilon = max(0.01, 0.9 ** simulation.current_episode)
 
     @property
     def obs_history(self) -> list[list[ObsType]]:
