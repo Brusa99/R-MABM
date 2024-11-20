@@ -80,10 +80,10 @@ class SimulationTestCase(unittest.TestCase):
         self.assertFalse(sim._terminated)
         self.assertFalse(sim._truncated)
 
-        self.assertEqual(len(sim._obs_history), 1)
-        self.assertEqual(len(sim._act_history), 1)
-        self.assertEqual(len(sim._reward_history), 1)
-        self.assertEqual(len(sim._info_history), 1)
+        self.assertEqual(len(sim.obs_history), 1)
+        self.assertEqual(len(sim.act_history), 1)
+        self.assertEqual(len(sim.reward_history), 1)
+        self.assertEqual(len(sim.info_history), 1)
 
         # training
         sim.step(train=True)
@@ -94,10 +94,10 @@ class SimulationTestCase(unittest.TestCase):
         self.assertFalse(sim._terminated)
         self.assertFalse(sim._truncated)
 
-        self.assertEqual(len(sim._obs_history), 2)
-        self.assertEqual(len(sim._act_history), 2)
-        self.assertEqual(len(sim._reward_history), 2)
-        self.assertEqual(len(sim._info_history), 2)
+        self.assertEqual(len(sim.obs_history), 2)
+        self.assertEqual(len(sim.act_history), 2)
+        self.assertEqual(len(sim.reward_history), 2)
+        self.assertEqual(len(sim.info_history), 2)
 
         # check that the agent Q matrix has at least a non-zero value
         self.assertNotEqual(max(sim.agents[0].Q.max(), - sim.agents[0].Q.min()), 0)

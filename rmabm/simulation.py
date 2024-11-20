@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from gymnasium.core import ObsType, ActType
 
 from rmabm import Logger
 from rmabm.agents import Dummy, QLearner
@@ -146,3 +147,23 @@ class Simulation:
 
         self.reset()
         self.current_episode += 1
+
+    @property
+    def obs_history(self) -> list[list[ObsType]]:
+        """Return the current episode's observations."""
+        return self._obs_history
+
+    @property
+    def act_history(self) -> list[list[ActType]]:
+        """Return the current episode's actions."""
+        return self._act_history
+
+    @property
+    def reward_history(self) -> list[list[float]]:
+        """Return the current episode's rewards."""
+        return self._reward_history
+
+    @property
+    def info_history(self) -> list[dict[str, Any]]:
+        """Return the current episode's infos."""
+        return self._info_history
