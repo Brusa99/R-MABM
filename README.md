@@ -33,7 +33,7 @@ Pkg.add("ABCredit")
 ## Disclaimer
 
 This package is an outcome of a research project.
-A preprint of the article is available [here](https://arxiv.org/abs/2405.02161).
+The article was presented at [ICAIF24](https://ai-finance.org/), and is available [here](https://dl.acm.org/doi/10.1145/3677052.3698621).
 
 
 ## Authors
