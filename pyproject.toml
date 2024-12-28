@@ -11,15 +11,15 @@ authors = [
 description = "MARL interface for M-ABMs"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "gymnasium>=0.29.1",
-    "juliacall>=0.9.20",
-    "numpy>=2.0.0",
-    "typing_extensions>=4.12.2",
+    "gymnasium",
+    "juliacall",
+    "numpy",
+    "typing_extensions",
 ]
 
 [project.urls]
