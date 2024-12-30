@@ -14,7 +14,7 @@ cd R-MABM
 python -m pip install -e .
 ```
 
-Python 3.12 is required.
+Otherwise, it can be installed directly with `pip install git+https://github.com/Brusa99/R-MABM.git`.
 
 ### Julia Dependencies
 
